@@ -26,7 +26,7 @@ const EventLoopVisualizer: React.FC = () => {
   };
 
   const updateUI = async () => {
-    await sleep(1000);
+    await sleep(1000); 
   };
 
   const executeCode = useCallback(async () => {
@@ -49,12 +49,16 @@ const EventLoopVisualizer: React.FC = () => {
     const mockSetTimeout = (callback: Function, delay: number) => {
       const timeoutId = `setTimeout(${delay}ms)`;
       setWebApis(prev => [...prev, timeoutId]);
+
       setTimeout(async () => {
         setWebApis(prev => prev.filter(item => item !== timeoutId));
         setQueue(prev => [...prev, 'setTimeout callback']);
         await updateUI();
+
+        // 確保微任務執行完後再執行宏任務
         await spinLoop();
-        await callback();
+        await updateUI();
+        callback(); // 在此處執行回調
         setQueue(prev => prev.filter(item => item !== 'setTimeout callback'));
         await updateUI();
       }, delay);
@@ -73,11 +77,13 @@ const EventLoopVisualizer: React.FC = () => {
             this.state = 'fulfilled';
             this.value = value;
             setMicroTaskQueue(prev => [...prev, 'Promise resolved']);
-            await updateUI();
-            await spinLoop();
-            this.thenCallbacks.forEach(callback => queueMicrotask(() => callback(value)));
-            setMicroTaskQueue(prev => prev.filter(item => item !== 'Promise resolved'));
-            await updateUI();
+            queueMicrotask(async () => {
+              this.thenCallbacks.forEach(callback => callback(value));
+              setMicroTaskQueue(prev => prev.filter(item => item !== 'Promise resolved'));
+              await updateUI();
+              await spinLoop(); // 將事件循環動畫放在微任務隊列處理之後
+              await updateUI();
+            });
           }
         };
 
@@ -85,7 +91,9 @@ const EventLoopVisualizer: React.FC = () => {
           if (this.state === 'pending') {
             this.state = 'rejected';
             this.reason = reason;
-            this.catchCallbacks.forEach(callback => queueMicrotask(() => callback(reason)));
+            queueMicrotask(() => {
+              this.catchCallbacks.forEach(callback => callback(reason));
+            });
           }
         };
 
@@ -101,7 +109,6 @@ const EventLoopVisualizer: React.FC = () => {
           if (onFulfilled) {
             this.thenCallbacks.push(async (result) => {
               try {
-                await spinLoop();
                 const value = await onFulfilled(result);
                 resolve(value);
               } catch (error) {
@@ -113,7 +120,6 @@ const EventLoopVisualizer: React.FC = () => {
           if (onRejected) {
             this.catchCallbacks.push(async (reason) => {
               try {
-                await spinLoop();
                 const value = await onRejected(reason);
                 resolve(value);
               } catch (error) {
@@ -123,9 +129,9 @@ const EventLoopVisualizer: React.FC = () => {
           }
 
           if (this.state === 'fulfilled') {
-            this.thenCallbacks.forEach(callback => queueMicrotask(() => callback(this.value!)));
+            queueMicrotask(() => this.thenCallbacks.forEach(callback => callback(this.value!)));
           } else if (this.state === 'rejected') {
-            this.catchCallbacks.forEach(callback => queueMicrotask(() => callback(this.reason)));
+            queueMicrotask(() => this.catchCallbacks.forEach(callback => callback(this.reason)));
           }
         });
       }
@@ -138,10 +144,10 @@ const EventLoopVisualizer: React.FC = () => {
         return new MockPromise<T>((resolve) => {
           queueMicrotask(async () => {
             setMicroTaskQueue(prev => [...prev, 'Promise.resolve']);
-            await updateUI();
-            await spinLoop();
             resolve(value);
             setMicroTaskQueue(prev => prev.filter(item => item !== 'Promise.resolve'));
+            await updateUI();
+            await spinLoop(); // 將事件循環動畫放在微任務隊列處理之後
             await updateUI();
           });
         });
@@ -162,11 +168,11 @@ const EventLoopVisualizer: React.FC = () => {
 
     try {
       const wrappedCode = `
-        async function runCode() {
-          ${code}
-        }
-        runCode();
-      `;
+      async function runCode() {
+        ${code}
+      }
+      runCode();
+    `;
 
       const runInSandbox = new Function(...Object.keys(sandbox), wrappedCode);
       await runInSandbox(...Object.values(sandbox));
