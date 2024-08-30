@@ -1,67 +1,166 @@
 'use client'
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 
 const EventLoopVisualizer: React.FC = () => {
   const [code, setCode] = useState<string>('');
   const [stack, setStack] = useState<string[]>([]);
-  const [heap, setHeap] = useState<string[]>([]);
   const [queue, setQueue] = useState<string[]>([]);
   const [microTaskQueue, setMicroTaskQueue] = useState<string[]>([]);
   const [log, setLog] = useState<string[]>([]);
   const [webApis, setWebApis] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState<boolean>(false);
+  const loopRef = useRef<HTMLSpanElement>(null);
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+  const spinLoop = async () => {
+    if (loopRef.current) {
+      loopRef.current.style.transition = 'transform 0.5s ease-in-out';
+      loopRef.current.style.transform = 'rotate(360deg)';
+      await sleep(500);
+      loopRef.current.style.transition = 'none';
+      loopRef.current.style.transform = 'rotate(0deg)';
+    }
+  };
+
+  const updateUI = async () => {
+    await sleep(1000);
+  };
+
   const executeCode = useCallback(async () => {
     setIsRunning(true);
-    // Reset states
     setStack([]);
-    setHeap([]);
     setQueue([]);
     setMicroTaskQueue([]);
     setLog([]);
     setWebApis([]);
 
-    const updateUI = async () => {
-      await sleep(100);
+    const mockConsoleLog = async (...args: any[]) => {
+      const message = args.join(' ');
+      setStack(prev => [...prev, `console.log("${message}")`]);
+      await updateUI();
+      setLog(prev => [...prev, message]);
+      setStack(prev => prev.filter(item => !item.startsWith('console.log')));
+      await updateUI();
+    };
+
+    const mockSetTimeout = (callback: Function, delay: number) => {
+      const timeoutId = `setTimeout(${delay}ms)`;
+      setWebApis(prev => [...prev, timeoutId]);
+      setTimeout(async () => {
+        setWebApis(prev => prev.filter(item => item !== timeoutId));
+        setQueue(prev => [...prev, 'setTimeout callback']);
+        await updateUI();
+        await spinLoop();
+        await callback();
+        setQueue(prev => prev.filter(item => item !== 'setTimeout callback'));
+        await updateUI();
+      }, delay);
+    };
+
+    class MockPromise<T> {
+      private state: 'pending' | 'fulfilled' | 'rejected' = 'pending';
+      private value: T | undefined;
+      private reason: any;
+      private thenCallbacks: Array<(value: T) => void> = [];
+      private catchCallbacks: Array<(reason: any) => void> = [];
+
+      constructor(executor: (resolve: (value: T) => void, reject: (reason: any) => void) => void) {
+        const resolve = async (value: T) => {
+          if (this.state === 'pending') {
+            this.state = 'fulfilled';
+            this.value = value;
+            setMicroTaskQueue(prev => [...prev, 'Promise resolved']);
+            await updateUI();
+            await spinLoop();
+            this.thenCallbacks.forEach(callback => queueMicrotask(() => callback(value)));
+            setMicroTaskQueue(prev => prev.filter(item => item !== 'Promise resolved'));
+            await updateUI();
+          }
+        };
+
+        const reject = (reason: any) => {
+          if (this.state === 'pending') {
+            this.state = 'rejected';
+            this.reason = reason;
+            this.catchCallbacks.forEach(callback => queueMicrotask(() => callback(reason)));
+          }
+        };
+
+        try {
+          executor(resolve, reject);
+        } catch (error) {
+          reject(error);
+        }
+      }
+
+      then<U>(onFulfilled?: (value: T) => U | PromiseLike<U>, onRejected?: (reason: any) => U | PromiseLike<U>): MockPromise<U> {
+        return new MockPromise<U>((resolve, reject) => {
+          if (onFulfilled) {
+            this.thenCallbacks.push(async (result) => {
+              try {
+                await spinLoop();
+                const value = await onFulfilled(result);
+                resolve(value);
+              } catch (error) {
+                reject(error);
+              }
+            });
+          }
+
+          if (onRejected) {
+            this.catchCallbacks.push(async (reason) => {
+              try {
+                await spinLoop();
+                const value = await onRejected(reason);
+                resolve(value);
+              } catch (error) {
+                reject(error);
+              }
+            });
+          }
+
+          if (this.state === 'fulfilled') {
+            this.thenCallbacks.forEach(callback => queueMicrotask(() => callback(this.value!)));
+          } else if (this.state === 'rejected') {
+            this.catchCallbacks.forEach(callback => queueMicrotask(() => callback(this.reason)));
+          }
+        });
+      }
+
+      catch<U>(onRejected: (reason: any) => U | PromiseLike<U>): MockPromise<U> {
+        return this.then(undefined, onRejected);
+      }
+
+      static resolve<T>(value: T): MockPromise<T> {
+        return new MockPromise<T>((resolve) => {
+          queueMicrotask(async () => {
+            setMicroTaskQueue(prev => [...prev, 'Promise.resolve']);
+            await updateUI();
+            await spinLoop();
+            resolve(value);
+            setMicroTaskQueue(prev => prev.filter(item => item !== 'Promise.resolve'));
+            await updateUI();
+          });
+        });
+      }
+
+      static reject<T>(reason: any): MockPromise<T> {
+        return new MockPromise<T>((_, reject) => {
+          queueMicrotask(() => reject(reason));
+        });
+      }
+    }
+
+    const sandbox = {
+      setTimeout: mockSetTimeout,
+      console: { log: mockConsoleLog },
+      Promise: MockPromise,
     };
 
     try {
-      const mockConsoleLog = async (...args: any[]) => {
-        const message = args.join(' ');
-        setStack(prev => [...prev, `console.log("${message}")`]);
-        await updateUI();
-        setLog(prev => [...prev, message]);
-        setStack(prev => prev.filter(item => !item.startsWith('console.log')));
-        await updateUI();
-      };
-
-      const mockSetTimeout = (callback: Function, delay: number) => {
-        setWebApis(prev => [...prev, `setTimeout(${delay}ms)`]);
-        setTimeout(async () => {
-          setWebApis(prev => prev.filter(item => item !== `setTimeout(${delay}ms)`));
-          setQueue(prev => [...prev, 'setTimeout callback']);
-          await updateUI();
-          callback();  // 在此處明確執行回調
-          setQueue(prev => prev.filter(item => item !== 'setTimeout callback'));
-          await updateUI();
-        }, delay);
-      };
-
-      // 使用原生的 Promise
-      const sandbox = {
-        setTimeout: mockSetTimeout,
-        console: { log: mockConsoleLog },
-        Promise: Promise,  // 使用原生 Promise
-      };
-
-      setStack(prev => [...prev, 'main()']);
-      await updateUI();
-
-      // Execute the code in the sandbox
       const wrappedCode = `
         async function runCode() {
           ${code}
@@ -69,46 +168,14 @@ const EventLoopVisualizer: React.FC = () => {
         runCode();
       `;
 
-      // Use new Function to create a function with the sandbox as its context
       const runInSandbox = new Function(...Object.keys(sandbox), wrappedCode);
       await runInSandbox(...Object.values(sandbox));
-
-      setStack(prev => prev.filter(item => item !== 'main()'));
-      await updateUI();
-
-      // Simulate processing of micro-task queue
-      while (microTaskQueue.length > 0) {
-        const microTask = microTaskQueue.shift();
-        setStack(prev => [...prev, microTask || '']);
-        await updateUI();
-        setStack(prev => prev.filter(item => item !== microTask));
-        await updateUI();
-      }
-
-      // Simulate processing of macro-task queue
-      while (queue.length > 0) {
-        const macroTask = queue.shift();
-        setStack(prev => [...prev, macroTask || '']);
-        await updateUI();
-        setStack(prev => prev.filter(item => item !== macroTask));
-        await updateUI();
-
-        // 在每個宏任務後處理微任務
-        while (microTaskQueue.length > 0) {
-          const microTask = microTaskQueue.shift();
-          setStack(prev => [...prev, microTask || '']);
-          await updateUI();
-          setStack(prev => prev.filter(item => item !== microTask));
-          await updateUI();
-        }
-      }
 
     } catch (error) {
       setLog(prev => [...prev, `Error: ${(error as Error).message}`]);
     }
     setIsRunning(false);
   }, [code]);
-  // console.log(log,"===========log😍😍😍")
 
   return (
     <div className="flex h-screen text-white">
@@ -168,10 +235,9 @@ const EventLoopVisualizer: React.FC = () => {
         <div className="p-4 border border-gray-700 col-span-2">
           <h3 className="text-center text-blue-500">Event Loop</h3>
           <div className='flex items-center justify-center'>
-            <span className="text-center text-blue-500 text-4xl animate-spin">↻</span>
+            <span ref={loopRef} className="text-center text-blue-500 text-4xl">↻</span>
           </div>
         </div>
-        
       </div>
     </div>
   );
