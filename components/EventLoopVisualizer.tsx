@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import CodeEditor from './CodeEditor';
 import LogDisplay from './LogDisplay';
 import CallStackDisplay from './CallStackDisplay';
@@ -19,14 +19,20 @@ const EventLoopVisualizer: React.FC = () => {
 
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-    const spinLoop = async () => {
-        if (loopRef.current) {
-            loopRef.current.style.transition = 'transform 0.5s ease-in-out';
-            loopRef.current.style.transform = 'rotate(360deg)';
-            await sleep(500);
-            loopRef.current.style.transition = 'none';
-            loopRef.current.style.transform = 'rotate(0deg)';
-        }
+    const spinLoop = () => {
+        return new Promise<void>((resolve) => {
+            if (loopRef.current) {
+                loopRef.current.style.transition = 'transform 0.5s ease-in-out';
+                loopRef.current.style.transform = 'rotate(360deg)';
+                loopRef.current.addEventListener('transitionend', () => {
+                    loopRef.current!.style.transition = 'none';
+                    loopRef.current!.style.transform = 'rotate(0deg)';
+                    resolve();
+                }, { once: true });
+            } else {
+                resolve();
+            }
+        });
     };
 
     const updateUI = async () => {
@@ -82,12 +88,10 @@ const EventLoopVisualizer: React.FC = () => {
                         this.state = 'fulfilled';
                         this.value = value;
                         setMicroTaskQueue(prev => [...prev, 'Promise resolved']);
-                        queueMicrotask(async () => {
+                        queueMicrotask(() => {
                             this.thenCallbacks.forEach(callback => callback(value));
                             setMicroTaskQueue(prev => prev.filter(item => item !== 'Promise resolved'));
-                            await updateUI();
-                            await spinLoop(); // 將事件循環動畫放在微任務隊列處理之後
-                            await updateUI();
+                            spinLoop().then(updateUI); // 將spinLoop放在微任務後執行
                         });
                     }
                 };
@@ -190,6 +194,23 @@ const EventLoopVisualizer: React.FC = () => {
         }
         setIsRunning(false);
     }, [code]);
+
+
+    useEffect(() => {
+        setCode(`console.log(1);
+
+setTimeout(function () {
+  console.log(2);
+}, 0);
+
+Promise.resolve()
+  .then(function () {
+    console.log(3);
+  })
+  .then(function () {
+    console.log(4);
+  });`)
+    }, [])
 
     return (
         <div className="flex h-screen text-white">
