@@ -1,20 +1,15 @@
 import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowBigLeft, ArrowBigRight, Loader, Play } from 'lucide-react';
 
 interface EventLoopSpinnerProps {
-    loopRef: React.RefObject<HTMLSpanElement>;
+    isSpinning: boolean;
 }
 
-const EventLoopSpinner: React.FC<EventLoopSpinnerProps> = ({ loopRef }) => {
-    return (
-        <div className="p-4 border border-gray-700 col-span-2">
-            <h3 className="text-center text-blue-500">Event Loop</h3>
-            <div className="flex items-center justify-center">
-                <span ref={loopRef} className="text-center text-blue-500 text-4xl">
-                    ↻
-                </span>
-            </div>
-        </div>
-    );
-};
+const EventLoopSpinner: React.FC<EventLoopSpinnerProps> = ({ isSpinning }) => (
+    <Card className="flex items-center justify-center">
+        <Loader className={`w-16 h-16 ${isSpinning ? 'animate-spin' : ''}`} />
+    </Card>
+);
 
 export default EventLoopSpinner;

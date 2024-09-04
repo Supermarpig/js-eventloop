@@ -1,11 +1,21 @@
 'use client';
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import CodeEditor from './CodeEditor';
-import LogDisplay from './LogDisplay';
-import CallStackDisplay from './CallStackDisplay';
-import WebApisDisplay from './WebApisDisplay';
-import QueueDisplay from './QueueDisplay';
-import EventLoopSpinner from './EventLoopSpinner';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { ArrowBigLeft, ArrowBigRight, Play } from 'lucide-react';
+import CodeEditor from '@/components/CodeEditor'
+import LogDisplay from '@/components/LogDisplay'
+import CallStackDisplay from '@/components/CallStackDisplay'
+import WebApisDisplay from '@/components/WebApisDisplay'
+import QueueDisplay from '@/components/QueueDisplay'
+import EventLoopSpinner from '@/components/EventLoopSpinner'
+
+// Type definitions
+type StepType = 'stack' | 'removeFromStack' | 'queue' | 'removeFromQueue' | 'microTaskQueue' | 'removeFromMicroTaskQueue' | 'webApi' | 'removeFromWebApi' | 'log' | 'spin';
+
+interface Step {
+    type: StepType;
+    data?: string;
+}
 
 const EventLoopVisualizer: React.FC = () => {
     const [code, setCode] = useState<string>('');
@@ -15,162 +25,136 @@ const EventLoopVisualizer: React.FC = () => {
     const [log, setLog] = useState<string[]>([]);
     const [webApis, setWebApis] = useState<string[]>([]);
     const [isRunning, setIsRunning] = useState<boolean>(false);
-    const loopRef = useRef<HTMLSpanElement>(null);
+    const [isSpinning, setIsSpinning] = useState<boolean>(false);
+    const [currentStep, setCurrentStep] = useState<number>(0);
+    const [steps, setSteps] = useState<Step[]>([]);
 
-    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    const createStep = (type: StepType, data?: string): Step => ({ type, data });
 
-    const spinLoop = () => {
-        return new Promise<void>((resolve) => {
-            if (loopRef.current) {
-                loopRef.current.style.transition = 'transform 0.5s ease-in-out';
-                loopRef.current.style.transform = 'rotate(360deg)';
-                loopRef.current.addEventListener('transitionend', () => {
-                    loopRef.current!.style.transition = 'none';
-                    loopRef.current!.style.transform = 'rotate(0deg)';
-                    resolve();
-                }, { once: true });
-            } else {
-                resolve();
+    const mockConsoleLog = (...args: any[]): void => {
+        const message = args.join(' ');
+        setSteps(prev => [
+            ...prev,
+            createStep('stack', `console.log("${message}")`),
+            createStep('log', message),
+            createStep('removeFromStack', `console.log("${message}")`)
+        ]);
+    };
+
+    const mockSetTimeout = (callback: () => void, delay: number): void => {
+        const timeoutId = `setTimeout(${delay}ms)`;
+        setSteps(prev => [
+            ...prev,
+            createStep('webApi', timeoutId),
+            createStep('removeFromWebApi', timeoutId),
+            createStep('queue', 'setTimeout callback'),
+            createStep('spin'),
+            createStep('removeFromQueue', 'setTimeout callback')
+        ]);
+        setTimeout(() => {
+            callback();
+        }, delay);
+    };
+
+    class MockPromise<T> {
+        private state: 'pending' | 'fulfilled' | 'rejected' = 'pending';
+        private value?: T;
+        private reason?: any;
+        private thenCallbacks: Array<(value: T) => void> = [];
+        private catchCallbacks: Array<(reason: any) => void> = [];
+
+        constructor(executor: (resolve: (value: T) => void, reject: (reason: any) => void) => void) {
+            const resolve = (value: T) => {
+                if (this.state === 'pending') {
+                    this.state = 'fulfilled';
+                    this.value = value;
+                    setSteps(prev => [
+                        ...prev,
+                        createStep('microTaskQueue', 'Promise resolved'),
+                        createStep('spin'),
+                        createStep('removeFromMicroTaskQueue', 'Promise resolved')
+                    ]);
+                    queueMicrotask(() => {
+                        this.thenCallbacks.forEach(callback => callback(value));
+                    });
+                }
+            };
+
+            const reject = (reason: any) => {
+                if (this.state === 'pending') {
+                    this.state = 'rejected';
+                    this.reason = reason;
+                    queueMicrotask(() => {
+                        this.catchCallbacks.forEach(callback => callback(reason));
+                    });
+                }
+            };
+
+            try {
+                executor(resolve, reject);
+            } catch (error) {
+                reject(error);
             }
-        });
-    };
+        }
 
-    const updateUI = async () => {
-        await sleep(1000);
-    };
+        then<U>(onFulfilled?: (value: T) => U | PromiseLike<U>, onRejected?: (reason: any) => U | PromiseLike<U>): MockPromise<U> {
+            return new MockPromise<U>((resolve, reject) => {
+                if (onFulfilled) {
+                    this.thenCallbacks.push((result) => {
+                        try {
+                            const value = onFulfilled(result);
+                            resolve(value as U);
+                        } catch (error) {
+                            reject(error);
+                        }
+                    });
+                }
 
-    const executeCode = useCallback(async () => {
+                if (onRejected) {
+                    this.catchCallbacks.push((reason) => {
+                        try {
+                            const value = onRejected(reason);
+                            resolve(value as U);
+                        } catch (error) {
+                            reject(error);
+                        }
+                    });
+                }
+
+                if (this.state === 'fulfilled') {
+                    queueMicrotask(() => this.thenCallbacks.forEach(callback => callback(this.value!)));
+                } else if (this.state === 'rejected') {
+                    queueMicrotask(() => this.catchCallbacks.forEach(callback => callback(this.reason)));
+                }
+            });
+        }
+
+        catch<U>(onRejected: (reason: any) => U | PromiseLike<U>): MockPromise<U> {
+            return this.then(undefined, onRejected);
+        }
+
+        static resolve<T>(value: T): MockPromise<T> {
+            return new MockPromise<T>((resolve) => {
+                queueMicrotask(() => resolve(value));
+            });
+        }
+
+        static reject<T>(reason: any): MockPromise<T> {
+            return new MockPromise<T>((_, reject) => {
+                queueMicrotask(() => reject(reason));
+            });
+        }
+    }
+
+    const executeCode = useCallback(() => {
         setIsRunning(true);
+        setSteps([]);
+        setCurrentStep(0);
         setStack([]);
         setQueue([]);
         setMicroTaskQueue([]);
         setLog([]);
         setWebApis([]);
-
-        const mockConsoleLog = async (...args: any[]) => {
-            const message = args.join(' ');
-            setStack(prev => [...prev, `console.log("${message}")`]);
-            await updateUI();
-            await sleep(1000);
-            setLog(prev => [...prev, message]);
-            setStack(prev => prev.filter(item => !item.startsWith('console.log')));
-            await updateUI();
-        };
-
-        const mockSetTimeout = (callback: Function, delay: number) => {
-            const timeoutId = `setTimeout(${delay}ms)`;
-            setWebApis(prev => [...prev, timeoutId]);
-
-            setTimeout(async () => {
-                setWebApis(prev => prev.filter(item => item !== timeoutId));
-                setQueue(prev => [...prev, 'setTimeout callback']);
-                await updateUI();
-
-                // 確保微任務執行完後再執行宏任務
-                await spinLoop();
-                await updateUI();
-                callback(); // 在此處執行回調
-                setQueue(prev => prev.filter(item => item !== 'setTimeout callback'));
-                await updateUI();
-            }, delay);
-        };
-
-        class MockPromise<T> {
-            private state: 'pending' | 'fulfilled' | 'rejected' = 'pending';
-            private value: T | undefined;
-            private reason: any;
-            private thenCallbacks: Array<(value: T) => void> = [];
-            private catchCallbacks: Array<(reason: any) => void> = [];
-
-            constructor(executor: (resolve: (value: T) => void, reject: (reason: any) => void) => void) {
-                const resolve = async (value: T) => {
-                    if (this.state === 'pending') {
-                        this.state = 'fulfilled';
-                        this.value = value;
-                        setMicroTaskQueue(prev => [...prev, 'Promise resolved']);
-                        queueMicrotask(() => {
-                            this.thenCallbacks.forEach(callback => callback(value));
-                            setMicroTaskQueue(prev => prev.filter(item => item !== 'Promise resolved'));
-                            spinLoop().then(updateUI); // 將spinLoop放在微任務後執行
-                        });
-                    }
-                };
-
-                const reject = (reason: any) => {
-                    if (this.state === 'pending') {
-                        this.state = 'rejected';
-                        this.reason = reason;
-                        queueMicrotask(() => {
-                            this.catchCallbacks.forEach(callback => callback(reason));
-                        });
-                    }
-                };
-
-                try {
-                    executor(resolve, reject);
-                } catch (error) {
-                    reject(error);
-                }
-            }
-
-            then<U>(onFulfilled?: (value: T) => U | PromiseLike<U>, onRejected?: (reason: any) => U | PromiseLike<U>): MockPromise<U> {
-                return new MockPromise<U>((resolve, reject) => {
-                    if (onFulfilled) {
-                        this.thenCallbacks.push(async (result) => {
-                            try {
-                                await sleep(300);
-                                const value = await onFulfilled(result);
-                                resolve(value);
-                            } catch (error) {
-                                reject(error);
-                            }
-                        });
-                    }
-
-                    if (onRejected) {
-                        this.catchCallbacks.push(async (reason) => {
-                            try {
-                                await sleep(300);
-                                const value = await onRejected(reason);
-                                resolve(value);
-                            } catch (error) {
-                                reject(error);
-                            }
-                        });
-                    }
-
-                    if (this.state === 'fulfilled') {
-                        queueMicrotask(() => this.thenCallbacks.forEach(callback => callback(this.value!)));
-                    } else if (this.state === 'rejected') {
-                        queueMicrotask(() => this.catchCallbacks.forEach(callback => callback(this.reason)));
-                    }
-                });
-            }
-
-            catch<U>(onRejected: (reason: any) => U | PromiseLike<U>): MockPromise<U> {
-                return this.then(undefined, onRejected);
-            }
-
-            static resolve<T>(value: T): MockPromise<T> {
-                return new MockPromise<T>((resolve) => {
-                    queueMicrotask(async () => {
-                        setMicroTaskQueue(prev => [...prev, 'Promise.resolve']);
-                        await sleep(300); // 在resolve時也引入延遲
-                        resolve(value);
-                        setMicroTaskQueue(prev => prev.filter(item => item !== 'Promise.resolve'));
-                        await updateUI();
-                        await spinLoop(); // 將事件循環動畫放在微任務隊列處理之後
-                        await updateUI();
-                    });
-                });
-            }
-
-            static reject<T>(reason: any): MockPromise<T> {
-                return new MockPromise<T>((_, reject) => {
-                    queueMicrotask(() => reject(reason));
-                });
-            }
-        }
 
         const sandbox = {
             setTimeout: mockSetTimeout,
@@ -180,51 +164,129 @@ const EventLoopVisualizer: React.FC = () => {
 
         try {
             const wrappedCode = `
-      async function runCode() {
-        ${code}
-      }
-      runCode();
-    `;
+        async function runCode() {
+          ${code}
+        }
+        runCode();
+      `;
 
             const runInSandbox = new Function(...Object.keys(sandbox), wrappedCode);
-            await runInSandbox(...Object.values(sandbox));
-
+            runInSandbox(...Object.values(sandbox));
         } catch (error) {
             setLog(prev => [...prev, `Error: ${(error as Error).message}`]);
         }
-        setIsRunning(false);
     }, [code]);
 
+    const applyStep = (step: Step) => {
+        switch (step.type) {
+            case 'stack':
+                setStack(prev => [...prev, step.data!]);
+                break;
+            case 'removeFromStack':
+                setStack(prev => prev.filter(item => item !== step.data));
+                break;
+            case 'queue':
+                setQueue(prev => [...prev, step.data!]);
+                break;
+            case 'removeFromQueue':
+                setQueue(prev => prev.filter(item => item !== step.data));
+                break;
+            case 'microTaskQueue':
+                setMicroTaskQueue(prev => [...prev, step.data!]);
+                break;
+            case 'removeFromMicroTaskQueue':
+                setMicroTaskQueue(prev => prev.filter(item => item !== step.data));
+                break;
+            case 'webApi':
+                setWebApis(prev => [...prev, step.data!]);
+                break;
+            case 'removeFromWebApi':
+                setWebApis(prev => prev.filter(item => item !== step.data));
+                break;
+            case 'log':
+                setLog(prev => [...prev, step.data!]);
+                break;
+            case 'spin':
+                setIsSpinning(true);
+                setTimeout(() => setIsSpinning(false), 500);
+                break;
+        }
+    };
+
+    const nextStep = () => {
+        if (currentStep < steps.length) {
+            applyStep(steps[currentStep]);
+            setCurrentStep(prev => prev + 1);
+        }
+        if (currentStep === steps.length - 1) {
+            setIsRunning(false);
+        }
+    };
+
+    const prevStep = () => {
+        if (currentStep > 0) {
+            setCurrentStep(prev => prev - 1);
+            // Reset the state and reapply all steps up to the new current step
+            setStack([]);
+            setQueue([]);
+            setMicroTaskQueue([]);
+            setLog([]);
+            setWebApis([]);
+            for (let i = 0; i < currentStep - 1; i++) {
+                applyStep(steps[i]);
+            }
+        }
+    };
 
     useEffect(() => {
-        setCode(`console.log(1);
+        setCode(`console.log("begins");
 
-setTimeout(function () {
-  console.log(2);
+setTimeout(() => {
+  console.log("setTimeout 1");
+  Promise.resolve().then(() => {
+    console.log("promise 1");
+  });
 }, 0);
 
-Promise.resolve()
-  .then(function () {
-    console.log(3);
-  })
-  .then(function () {
-    console.log(4);
-  });`)
-    }, [])
+new Promise(function (resolve, reject) {
+  console.log("promise 2");
+  setTimeout(function () {
+    console.log("setTimeout 2");
+    resolve("resolve 1");
+  }, 0);
+}).then((res) => {
+  console.log("dot then 1");
+  setTimeout(() => {
+    console.log(res);
+  }, 0);
+});`);
+    }, []);
 
     return (
-        <div className="flex h-screen text-white">
-            <div className="w-1/3 p-4 border-r border-gray-700 h-full flex flex-col justify-between gap-4">
-                <CodeEditor code={code} setCode={setCode} isRunning={isRunning} executeCode={executeCode} />
-                <LogDisplay log={log} />
+        <div className="flex flex-col h-screen p-4 bg-gray-900 text-white">
+            <div className="flex mb-4">
+                <Button onClick={executeCode} disabled={isRunning} className="mr-2">
+                    <Play className="mr-2 h-4 w-4" /> Run Code
+                </Button>
+                <Button onClick={prevStep} disabled={!isRunning || currentStep === 0} className="mr-2">
+                    <ArrowBigLeft className="mr-2 h-4 w-4" /> Previous Step
+                </Button>
+                <Button onClick={nextStep} disabled={!isRunning || currentStep === steps.length}>
+                    <ArrowBigRight className="mr-2 h-4 w-4" /> Next Step
+                </Button>
             </div>
-
-            <div className="flex-1 grid grid-rows-3 grid-cols-2 gap-4 p-4">
-                <CallStackDisplay stack={stack} />
-                <WebApisDisplay webApis={webApis} />
-                <QueueDisplay title="Callback Queue (Macrotasks)" queue={queue} />
-                <QueueDisplay title="Microtask Queue" queue={microTaskQueue} />
-                <EventLoopSpinner loopRef={loopRef} />
+            <div className="flex h-full">
+                <div className="w-1/3 pr-4 flex flex-col gap-4">
+                    <CodeEditor code={code} setCode={setCode} />
+                    <LogDisplay log={log} />
+                </div>
+                <div className="flex-1 grid grid-cols-2 grid-rows-3 gap-4 overflow-auto">
+                    <CallStackDisplay stack={stack} />
+                    <WebApisDisplay webApis={webApis} />
+                    <QueueDisplay title="Callback Queue (Macrotasks)" queue={queue} />
+                    <QueueDisplay title="Microtask Queue" queue={microTaskQueue} />
+                    <EventLoopSpinner isSpinning={isSpinning} />
+                </div>
             </div>
         </div>
     );

@@ -1,26 +1,22 @@
 import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface WebApisDisplayProps {
     webApis: string[];
 }
 
-const WebApisDisplay: React.FC<WebApisDisplayProps> = ({ webApis }) => {
-    return (
-        <div className="p-4 border border-gray-700 row-span-2">
-            <h3 className="text-center text-purple-500">Web APIs</h3>
-            <div className="mt-2 space-y-1">
-                {webApis.length === 0 ? (
-                    <div className="text-center text-gray-400">Empty</div>
-                ) : (
-                    webApis.map((item, index) => (
-                        <div key={index} className="text-center bg-gray-800 p-1 rounded">
-                            {item}
-                        </div>
-                    ))
-                )}
-            </div>
-        </div>
-    );
-};
+const WebApisDisplay: React.FC<WebApisDisplayProps> = ({ webApis }) => (
+    <Card>
+        <CardHeader>
+            <CardTitle>Web APIs</CardTitle>
+        </CardHeader>
+        <CardContent>
+            {webApis.map((api, index) => (
+                <div key={index} className="bg-gray-700 p-2 mb-2 rounded text-white">{api}</div>
+            ))}
+        </CardContent>
+    </Card>
+);
+
 
 export default WebApisDisplay;

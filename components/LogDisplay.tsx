@@ -1,26 +1,20 @@
 import React from 'react';
-
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 interface LogDisplayProps {
     log: string[];
 }
 
-const LogDisplay: React.FC<LogDisplayProps> = ({ log }) => {
-    return (
-        <div className="p-4 border border-gray-700 col-span-2 overflow-y-auto">
-            <h3 className="text-center text-green-500">Console Log</h3>
-            <div className="mt-2 space-y-1">
-                {log.length === 0 ? (
-                    <div className="text-center text-gray-400">Empty</div>
-                ) : (
-                    log.map((entry, index) => (
-                        <div key={index} className="text-center bg-gray-800 p-1 rounded">
-                            {entry}
-                        </div>
-                    ))
-                )}
-            </div>
-        </div>
-    );
-};
+const LogDisplay: React.FC<LogDisplayProps> = ({ log }) => (
+    <Card className="h-1/2 overflow-auto">
+        <CardHeader>
+            <CardTitle>Console Output</CardTitle>
+        </CardHeader>
+        <CardContent>
+            {log.map((entry, index) => (
+                <div key={index} className="text-green-600 text-2xl">{entry}</div>
+            ))}
+        </CardContent>
+    </Card>
+);
 
 export default LogDisplay;

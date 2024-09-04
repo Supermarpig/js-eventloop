@@ -1,27 +1,22 @@
 import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface QueueDisplayProps {
     title: string;
     queue: string[];
 }
 
-const QueueDisplay: React.FC<QueueDisplayProps> = ({ title, queue }) => {
-    return (
-        <div className="p-4 border border-gray-700">
-            <h3 className={`text-center ${title.includes('Microtask') ? 'text-green-500' : 'text-red-500'}`}>{title}</h3>
-            <div className="mt-2 space-y-1">
-                {queue.length === 0 ? (
-                    <div className="text-center text-gray-400">Empty</div>
-                ) : (
-                    queue.map((item, index) => (
-                        <div key={index} className="text-center bg-gray-800 p-1 rounded">
-                            {item}
-                        </div>
-                    ))
-                )}
-            </div>
-        </div>
-    );
-};
+const QueueDisplay: React.FC<QueueDisplayProps> = ({ title, queue }) => (
+    <Card>
+        <CardHeader>
+            <CardTitle>{title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+            {queue.map((item, index) => (
+                <div key={index} className="bg-gray-700 p-2 mb-2 rounded text-white">{item}</div>
+            ))}
+        </CardContent>
+    </Card>
+);
 
 export default QueueDisplay;

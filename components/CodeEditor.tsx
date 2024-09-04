@@ -1,33 +1,27 @@
 import React from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface CodeEditorProps {
     code: string;
     setCode: React.Dispatch<React.SetStateAction<string>>;
-    isRunning: boolean;
-    executeCode: () => void;
 }
 
-const CodeEditor: React.FC<CodeEditorProps> = ({ code, setCode, isRunning, executeCode }) => {
-    return (
-        <>
-            <CodeMirror
+
+const CodeEditor: React.FC<CodeEditorProps> = ({ code, setCode }) => (
+    <Card className="h-1/2 relative overflow-hidden flex flex-col pb-4">
+        <CardHeader>
+            <CardTitle>Code Editor</CardTitle>
+        </CardHeader>
+        <CardContent className='p-0 flex-grow'>
+            <textarea
                 value={code}
-                height="calc(70vh - 8rem)"
-                extensions={[javascript()]}
-                onChange={(value) => setCode(value)}
-                theme="dark"
+                onChange={(e) => setCode(e.target.value)}
+                className="w-full h-full bg-gray-800 text-white p-2 rounded resize-none"
             />
-            <button
-                onClick={executeCode}
-                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-500"
-                disabled={isRunning}
-            >
-                {isRunning ? 'Running...' : 'Run Code'}
-            </button>
-        </>
-    );
-};
+        </CardContent>
+    </Card>
+);
 
 export default CodeEditor;
