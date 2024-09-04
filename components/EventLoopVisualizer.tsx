@@ -99,10 +99,10 @@ const EventLoopVisualizer: React.FC = () => {
 
         then<U>(onFulfilled?: (value: T) => U | PromiseLike<U>, onRejected?: (reason: any) => U | PromiseLike<U>): MockPromise<U> {
             return new MockPromise<U>((resolve, reject) => {
-                if (onFulfilled) {
-                    this.thenCallbacks.push((result) => {
+                if (onFulfilled && this.state === 'fulfilled') {
+                    queueMicrotask(() => {
                         try {
-                            const value = onFulfilled(result);
+                            const value = onFulfilled(this.value!);
                             resolve(value as U);
                         } catch (error) {
                             reject(error);
@@ -110,10 +110,10 @@ const EventLoopVisualizer: React.FC = () => {
                     });
                 }
 
-                if (onRejected) {
-                    this.catchCallbacks.push((reason) => {
+                if (onRejected && this.state === 'rejected') {
+                    queueMicrotask(() => {
                         try {
-                            const value = onRejected(reason);
+                            const value = onRejected(this.reason);
                             resolve(value as U);
                         } catch (error) {
                             reject(error);
@@ -121,13 +121,32 @@ const EventLoopVisualizer: React.FC = () => {
                     });
                 }
 
-                if (this.state === 'fulfilled') {
-                    queueMicrotask(() => this.thenCallbacks.forEach(callback => callback(this.value!)));
-                } else if (this.state === 'rejected') {
-                    queueMicrotask(() => this.catchCallbacks.forEach(callback => callback(this.reason)));
+                if (this.state === 'pending') {
+                    if (onFulfilled) {
+                        this.thenCallbacks.push((result) => {
+                            try {
+                                const value = onFulfilled(result);
+                                resolve(value as U);
+                            } catch (error) {
+                                reject(error);
+                            }
+                        });
+                    }
+
+                    if (onRejected) {
+                        this.catchCallbacks.push((reason) => {
+                            try {
+                                const value = onRejected(reason);
+                                resolve(value as U);
+                            } catch (error) {
+                                reject(error);
+                            }
+                        });
+                    }
                 }
             });
         }
+
 
         catch<U>(onRejected: (reason: any) => U | PromiseLike<U>): MockPromise<U> {
             return this.then(undefined, onRejected);
