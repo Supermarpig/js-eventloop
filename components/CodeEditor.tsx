@@ -71,7 +71,7 @@ new Promise(function (resolve, reject) {
   };
 
   return (
-    <Card className="h-1/2 max-h-1/2 relative overflow-hidden flex flex-col pb-4">
+    <Card className="h-1/2 max-h-1/2 relative overflow-hidden flex flex-col">
       <CardHeader>
         <CardTitle>Code Editor</CardTitle>
       </CardHeader>
