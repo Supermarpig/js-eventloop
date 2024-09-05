@@ -5,13 +5,13 @@ interface LogDisplayProps {
 }
 
 const LogDisplay: React.FC<LogDisplayProps> = ({ log }) => (
-    <Card className="h-1/2 overflow-auto">
+    <Card className="h-1/2  overflow-hidden">
         <CardHeader>
             <CardTitle>Console Output</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-0 flex flex-col overflow-y-scroll">
             {log.map((entry, index) => (
-                <div key={index} className="text-green-600 text-2xl">{entry}</div>
+                <span key={index} className="text-green-600 text-2xl">{entry}</span>
             ))}
         </CardContent>
     </Card>

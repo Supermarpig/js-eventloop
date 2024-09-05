@@ -31,7 +31,7 @@ const EventLoopVisualizer: React.FC = () => {
     } = useEventLoop();
 
     return (
-        <div className="flex flex-col h-screen p-4 bg-gray-900 text-white">
+        <div className="flex flex-col h-full p-4 bg-gray-900 text-white overflow-y-auto">
             <div className="flex mb-4">
                 <Button onClick={executeCode} disabled={isRunning} className="mr-2">
                     <Play className="mr-2 h-4 w-4" /> Run Code
@@ -54,17 +54,27 @@ const EventLoopVisualizer: React.FC = () => {
                     )}
                 </Button>
             </div>
-            <div className="flex h-full">
-                <div className="w-1/3 pr-4 flex flex-col gap-4">
-                    <CodeEditor code={code} setCode={setCode} />
+            <div className="flex h-[calc(100%_-_52px)]">
+                <div className="w-1/3 pr-4 flex flex-col gap-4 h-full">
+                    <CodeEditor code={code} setCode={setCode} currentLine={0} />
                     <LogDisplay log={log} />
                 </div>
-                <div className="flex-1 grid grid-cols-2 grid-rows-3 gap-4 overflow-auto">
-                    <CallStackDisplay stack={stack} />
-                    <WebApisDisplay webApis={webApis} />
-                    <QueueDisplay title="Callback Queue (Macrotasks)" queue={queue} />
-                    <QueueDisplay title="Microtask Queue" queue={microTaskQueue} />
-                    <EventLoopSpinner isSpinning={isSpinning} />
+                <div className="flex flex-wrap gap-4 h-full w-full">
+                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(39%_-_32px)]">
+                        <CallStackDisplay stack={stack} />
+                    </div>
+                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(39%_-_32px)]">
+                        <WebApisDisplay webApis={webApis} />
+                    </div>
+                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(39%_-_32px)]">
+                        <QueueDisplay title="Callback Queue (Macrotasks)" queue={queue} />
+                    </div>
+                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(39%_-_32px)]">
+                        <QueueDisplay title="Microtask Queue" queue={microTaskQueue} />
+                    </div>
+                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(34%_-_32px)]">
+                        <EventLoopSpinner isSpinning={isSpinning} />
+                    </div>
                 </div>
             </div>
         </div>
