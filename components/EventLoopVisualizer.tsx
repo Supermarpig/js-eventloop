@@ -1,13 +1,13 @@
 'use client';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowBigLeft, ArrowBigRight, Play } from 'lucide-react';
-import CodeEditor from '@/components/CodeEditor'
-import LogDisplay from '@/components/LogDisplay'
-import CallStackDisplay from '@/components/CallStackDisplay'
-import WebApisDisplay from '@/components/WebApisDisplay'
-import QueueDisplay from '@/components/QueueDisplay'
-import EventLoopSpinner from '@/components/EventLoopSpinner'
+import { ArrowBigLeft, ArrowBigRight, Play, Pause } from 'lucide-react';
+import CodeEditor from '@/components/CodeEditor';
+import LogDisplay from '@/components/LogDisplay';
+import CallStackDisplay from '@/components/CallStackDisplay';
+import WebApisDisplay from '@/components/WebApisDisplay';
+import QueueDisplay from '@/components/QueueDisplay';
+import EventLoopSpinner from '@/components/EventLoopSpinner';
 
 // Type definitions
 type StepType = 'stack' | 'removeFromStack' | 'queue' | 'removeFromQueue' | 'microTaskQueue' | 'removeFromMicroTaskQueue' | 'webApi' | 'removeFromWebApi' | 'log' | 'spin';
@@ -25,12 +25,51 @@ const EventLoopVisualizer: React.FC = () => {
     const [log, setLog] = useState<string[]>([]);
     const [webApis, setWebApis] = useState<string[]>([]);
     const [isRunning, setIsRunning] = useState<boolean>(false);
+    const [isPaused, setIsPaused] = useState<boolean>(false);
     const [isSpinning, setIsSpinning] = useState<boolean>(false);
     const [currentStep, setCurrentStep] = useState<number>(0);
     const [steps, setSteps] = useState<Step[]>([]);
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const stepsRef = useRef<Step[]>([]);
+    const currentStepRef = useRef<number>(0);
+
+    useEffect(() => {
+        stepsRef.current = steps;
+    }, [steps]);
+
+    useEffect(() => {
+        console.log('Current step updated:', currentStep); // 確認 currentStep 是否正確更新
+    }, [currentStep]);
 
     const createStep = (type: StepType, data?: string): Step => ({ type, data });
 
+    const startInterval = () => {
+        if (!intervalRef.current) {
+            console.log('Starting interval'); // Debugging log
+            intervalRef.current = setInterval(() => {
+                console.log('Next step triggered by interval'); // Debugging log
+                nextStep();
+            }, 500);
+        }
+    };
+
+    const stopInterval = useCallback(() => {
+        console.log('Stopping interval'); // Debugging log
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+    }, []);
+
+    const togglePause = () => {
+        if (intervalRef.current) {
+            stopInterval(); // 停止interval，並立即暫停
+            setIsPaused(true); // 更新狀態為暫停
+        } else {
+            startInterval(); // 恢復interval，並開始執行
+            setIsPaused(false); // 更新狀態為恢復
+        }
+    };
     const mockConsoleLog = (...args: any[]): void => {
         const message = args.join(' ');
         setSteps(prev => [
@@ -191,12 +230,14 @@ const EventLoopVisualizer: React.FC = () => {
 
             const runInSandbox = new Function(...Object.keys(sandbox), wrappedCode);
             runInSandbox(...Object.values(sandbox));
+            startInterval(); // Start automatic step through
         } catch (error) {
             setLog(prev => [...prev, `Error: ${(error as Error).message}`]);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [code]);
 
-    const applyStep = (step: Step) => {
+    const applyStep = useCallback((step: Step) => {
         switch (step.type) {
             case 'stack':
                 setStack(prev => [...prev, step.data!]);
@@ -230,17 +271,28 @@ const EventLoopVisualizer: React.FC = () => {
                 setTimeout(() => setIsSpinning(false), 500);
                 break;
         }
-    };
+    }, []);
 
-    const nextStep = () => {
-        if (currentStep < steps.length) {
-            applyStep(steps[currentStep]);
-            setCurrentStep(prev => prev + 1);
+    const nextStep = useCallback(() => {
+        console.log(currentStepRef.current, "===========currentStep😍😍😍");
+        console.log(stepsRef.current.length, "===========steps.length");
+
+        if (currentStepRef.current < stepsRef.current.length) {
+            applyStep(stepsRef.current[currentStepRef.current]);
+
+            setCurrentStep(prev => {
+                const newStep = prev + 1;
+                console.log('New currentStep:', newStep);
+                return newStep;
+            });
+            currentStepRef.current += 1;
         }
-        if (currentStep === steps.length - 1) {
+
+        if (currentStepRef.current === stepsRef.current.length) {
             setIsRunning(false);
+            stopInterval();
         }
-    };
+    }, [applyStep, stopInterval]);
 
     const prevStep = () => {
         if (currentStep > 0) {
@@ -257,30 +309,6 @@ const EventLoopVisualizer: React.FC = () => {
         }
     };
 
-    useEffect(() => {
-        setCode(`console.log("begins");
-
-setTimeout(() => {
-  console.log("setTimeout 1");
-  Promise.resolve().then(() => {
-    console.log("promise 1");
-  });
-}, 0);
-
-new Promise(function (resolve, reject) {
-  console.log("promise 2");
-  setTimeout(function () {
-    console.log("setTimeout 2");
-    resolve("resolve 1");
-  }, 0);
-}).then((res) => {
-  console.log("dot then 1");
-  setTimeout(() => {
-    console.log(res);
-  }, 0);
-});`);
-    }, []);
-
     return (
         <div className="flex flex-col h-screen p-4 bg-gray-900 text-white">
             <div className="flex mb-4">
@@ -292,6 +320,17 @@ new Promise(function (resolve, reject) {
                 </Button>
                 <Button onClick={nextStep} disabled={!isRunning || currentStep === steps.length}>
                     <ArrowBigRight className="mr-2 h-4 w-4" /> Next Step
+                </Button>
+                <Button onClick={togglePause} disabled={!isRunning} className="mr-2">
+                    {isPaused ? (
+                        <>
+                            <Play className="mr-2 h-4 w-4" /> Resume
+                        </>
+                    ) : (
+                        <>
+                            <Pause className="mr-2 h-4 w-4" /> Pause
+                        </>
+                    )}
                 </Button>
             </div>
             <div className="flex h-full">
