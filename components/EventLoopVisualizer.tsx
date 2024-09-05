@@ -60,16 +60,16 @@ const EventLoopVisualizer: React.FC = () => {
                     <LogDisplay log={log} />
                 </div>
                 <div className="flex flex-wrap gap-4 h-full w-full">
-                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(39%_-_32px)]">
+                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(36%_-_32px)]">
                         <CallStackDisplay stack={stack} />
                     </div>
-                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(39%_-_32px)]">
+                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(36%_-_32px)]">
                         <WebApisDisplay webApis={webApis} />
                     </div>
-                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(39%_-_32px)]">
+                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(36%_-_32px)]">
                         <QueueDisplay title="Callback Queue (Macrotasks)" queue={queue} />
                     </div>
-                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(39%_-_32px)]">
+                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(36%_-_32px)]">
                         <QueueDisplay title="Microtask Queue" queue={microTaskQueue} />
                     </div>
                     <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(34%_-_32px)]">
