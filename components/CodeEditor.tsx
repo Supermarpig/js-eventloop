@@ -135,7 +135,8 @@ new Promise(function (resolve, reject) {
               }
             }),
           ]}
-          className="h-full max-h-64"
+          className="h-full bg-slate-800"
+          
         />
       </CardContent>
     </Card>
