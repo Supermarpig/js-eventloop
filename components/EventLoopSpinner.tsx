@@ -1,6 +1,6 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowBigLeft, ArrowBigRight, Loader, Play } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Loader } from 'lucide-react';
 
 interface EventLoopSpinnerProps {
     isSpinning: boolean;

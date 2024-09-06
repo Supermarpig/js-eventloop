@@ -69,14 +69,14 @@ const EventLoopVisualizer: React.FC = () => {
                         <WebApisDisplay webApis={webApis} />
                     </div>
                     <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(36%_-_32px)]">
-                        <QueueDisplay title="Callback Queue (Macrotasks)" queue={queue} />
+                        <QueueDisplay title="Callback Queue (Macrotasks)" queue={queue} isSpinning={isSpinning} />
                     </div>
                     <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(36%_-_32px)]">
-                        <QueueDisplay title="Microtask Queue" queue={microTaskQueue} />
+                        <QueueDisplay title="Microtask Queue" queue={microTaskQueue} isSpinning={false} />
                     </div>
-                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(34%_-_32px)]">
+                    {/* <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(34%_-_32px)]">
                         <EventLoopSpinner isSpinning={isSpinning} />
-                    </div>
+                    </div> */}
                 </div>
             </div>
         </div>
