@@ -23,7 +23,9 @@ export const useEventLoop = () => {
     const currentStepRef = useRef<number>(0);
 
     useEffect(() => {
-        stepsRef.current = steps;
+        if (typeof window !== 'undefined') {
+            stepsRef.current = steps;
+        }
     }, [steps]);
 
     const createStep = (type: Step['type'], data?: string, lineNumber?: number): Step => {
@@ -96,66 +98,49 @@ export const useEventLoop = () => {
     }, [code, stopInterval, startInterval]);
 
     const applyStep = useCallback((step: Step) => {
-        console.log("Applying step:", step);  // 調試語句，追蹤每次應用的步驟
-
         if (step.lineNumber !== undefined && step.lineNumber !== null) {
             setCurrentLine(step.lineNumber);
-            console.log("Updated currentLine:", step.lineNumber);  // 調試語句，確認行號的更新
         }
 
         switch (step.type) {
             case 'stack':
                 setStack(prev => [...prev, step.data!]);
-                console.log("Updated stack:", step.data);  // 調試語句，追蹤堆疊變化
                 setCurrentLine(step.lineNumber!);
                 break;
             case 'removeFromStack':
                 setStack(prev => prev.filter(item => item !== step.data));
-                console.log("Removed from stack:", step.data);  // 調試語句，追蹤從堆疊移除的項目
                 break;
             case 'queue':
                 setQueue(prev => [...prev, step.data!]);
-                console.log("Updated queue:", step.data);  // 調試語句，追蹤隊列變化
                 setCurrentLine(step.lineNumber!);
                 break;
             case 'removeFromQueue':
                 setQueue(prev => prev.filter(item => item !== step.data));
-                console.log("Removed from queue:", step.data);  // 調試語句，追蹤從隊列移除的項目
                 break;
             case 'microTaskQueue':
                 setMicroTaskQueue(prev => [...prev, step.data!]);
-                console.log("Updated microTaskQueue:", step.data);  // 調試語句，追蹤微任務隊列變化
                 setCurrentLine(step.lineNumber!);
                 break;
             case 'removeFromMicroTaskQueue':
                 setMicroTaskQueue(prev => prev.filter(item => item !== step.data));
-                console.log("Removed from microTaskQueue:", step.data);  // 調試語句，追蹤從微任務隊列移除的項目
                 break;
             case 'webApi':
                 setWebApis(prev => [...prev, step.data!]);
-                console.log("Updated webApis:", step.data);  // 調試語句，追蹤 Web APIs 變化
                 setCurrentLine(step.lineNumber!);
                 break;
             case 'removeFromWebApi':
                 setWebApis(prev => prev.filter(item => item !== step.data));
-                console.log("Removed from webApi:", step.data);  // 調試語句，追蹤從 Web API 移除的項目
                 break;
             case 'log':
                 setLog(prev => [...prev, step.data!]);
-                console.log("Logged data:", step.data);  // 調試語句，追蹤 log 資料
                 setCurrentLine(step.lineNumber!);
                 break;
             case 'spin':
                 setIsSpinning(true);
-                console.log("Spinner started");  // 調試語句，追蹤 spinner 開始
-                setTimeout(() => {
-                    setIsSpinning(false);
-                    console.log("Spinner stopped");  // 調試語句，追蹤 spinner 停止
-                }, 500);
+                setTimeout(() => setIsSpinning(false), 500);
                 break;
         }
     }, []);
-
 
     const nextStep = useCallback(() => {
         if (currentStepRef.current < stepsRef.current.length) {
