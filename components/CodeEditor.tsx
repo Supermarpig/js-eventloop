@@ -88,8 +88,9 @@ new Promise(function (resolve, reject) {
       const docLineCount = view.state.doc.lines;
 
       // 調整行號基準
-      const adjustedLine = currentLine - 4;
-      console.log(adjustedLine,"===========adjustedLine😍😍😍")
+      const adjustedLine = currentLine - (process.env.NODE_ENV === 'production' ? 2 : 4);
+      console.log(currentLine,"===========currentLine🤣🤣🤣")
+      // console.log(adjustedLine,"===========adjustedLine😍😍😍")
       if (adjustedLine > 0 && adjustedLine <= docLineCount) {
         // 把已執行的行數背景變暗
         for (let line = 1; line < adjustedLine; line++) {

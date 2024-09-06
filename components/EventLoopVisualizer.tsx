@@ -74,9 +74,9 @@ const EventLoopVisualizer: React.FC = () => {
                     <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(36%_-_32px)]">
                         <QueueDisplay title="Microtask Queue" queue={microTaskQueue} isSpinning={false} />
                     </div>
-                    {/* <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(34%_-_32px)]">
-                        <EventLoopSpinner isSpinning={isSpinning} />
-                    </div> */}
+                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(34%_-_32px)]">
+                        {/* <EventLoopSpinner isSpinning={isSpinning} /> */}
+                    </div>
                 </div>
             </div>
         </div>
