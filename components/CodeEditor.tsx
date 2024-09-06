@@ -87,8 +87,8 @@ new Promise(function (resolve, reject) {
       const view = editorRef.current;
       const docLineCount = view.state.doc.lines;
 
-      // 調整行號基準
-      const adjustedLine = currentLine - (process.env.NODE_ENV === 'production' ? 0 : 4);
+      // TODO:調整行號基準
+      const adjustedLine = currentLine - 4;
       // console.log(currentLine,"===========currentLine🤣🤣🤣")
       // console.log(adjustedLine,"===========adjustedLine😍😍😍")
       if (adjustedLine > 0 && adjustedLine <= docLineCount) {
