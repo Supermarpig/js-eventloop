@@ -22,6 +22,7 @@ const EventLoopVisualizer: React.FC = () => {
         isRunning,
         isPaused,
         isSpinning,
+        isComplete,
         currentStep,
         steps,
         currentLine,
@@ -57,7 +58,7 @@ const EventLoopVisualizer: React.FC = () => {
             </div>
             <div className="flex h-[calc(100%_-_52px)]">
                 <div className="w-1/3 pr-4 flex flex-col gap-4 h-full">
-                    <CodeEditor code={code} setCode={setCode}  currentLine={currentLine} />
+                    <CodeEditor code={code} setCode={setCode} currentLine={currentLine} isComplete={isComplete} />
                     <LogDisplay log={log} />
                 </div>
                 <div className="w-2/3 flex flex-wrap gap-4 h-full">

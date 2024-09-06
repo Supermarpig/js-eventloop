@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,9 +10,12 @@ interface CodeEditorProps {
   code: string;
   setCode: React.Dispatch<React.SetStateAction<string>>;
   currentLine: number;
+  isComplete: boolean; // 增加一個表示是否執行完成的狀態
 }
 
 const addHighlight = StateEffect.define<{ line: number }>({});
+const addExecutedHighlight = StateEffect.define<{ line: number }>({});
+const clearHighlights = StateEffect.define<null>({});
 
 const highlightField = StateField.define<DecorationSet>({
   create() {
@@ -28,6 +31,16 @@ const highlightField = StateField.define<DecorationSet>({
           add: [highlightDecoration.range(line.from, line.from)]
         });
       }
+      if (e.is(addExecutedHighlight)) {
+        const line = tr.state.doc.line(e.value.line);
+        highlights = highlights.update({
+          filter: (from) => from !== line.from,
+          add: [executedDecoration.range(line.from, line.from)]
+        });
+      }
+      if (e.is(clearHighlights)) {
+        highlights = Decoration.none;
+      }
     }
     return highlights;
   },
@@ -38,7 +51,11 @@ const highlightDecoration = Decoration.line({
   attributes: { style: "background-color: rgba(255, 255, 0);" }
 });
 
-const CodeEditor: React.FC<CodeEditorProps> = ({ code, setCode, currentLine }) => {
+const executedDecoration = Decoration.line({
+  attributes: { style: "background-color: rgba(100, 100, 100, 0.3);" }
+});
+
+const CodeEditor: React.FC<CodeEditorProps> = ({ code, setCode, currentLine, isComplete }) => {
   const editorRef = useRef<EditorView | null>(null);
 
   useEffect(() => {
@@ -70,17 +87,34 @@ new Promise(function (resolve, reject) {
       const view = editorRef.current;
       const docLineCount = view.state.doc.lines;
 
-      // console.log(currentLine,"=========currentLine😍😍😍")
       // 調整行號基準
       const adjustedLine = currentLine - 4;
       if (adjustedLine <= docLineCount) {
+        // 把已執行的行數背景變暗
+        for (let line = 1; line < adjustedLine; line++) {
+          view.dispatch({
+            effects: addExecutedHighlight.of({ line })
+          });
+        }
+
+        // 高亮目前行數
         view.dispatch({
           effects: addHighlight.of({ line: adjustedLine })
         });
       }
     }
-  }, [currentLine]);
 
+    // 如果 isComplete 為 true，清除所有高亮
+    if (isComplete && editorRef.current) {
+
+      setTimeout(() => {
+        editorRef.current?.dispatch({
+          effects: clearHighlights.of(null)
+        });
+      }, 1000);
+
+    }
+  }, [currentLine, isComplete]);
 
   return (
     <Card className="h-1/2 max-h-1/2 relative overflow-hidden flex flex-col">

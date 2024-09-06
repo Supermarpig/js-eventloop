@@ -17,6 +17,7 @@ export const useEventLoop = () => {
     const [isSpinning, setIsSpinning] = useState<boolean>(false);
     const [currentStep, setCurrentStep] = useState<number>(0);
     const [steps, setSteps] = useState<Step[]>([]);
+    const [isComplete, setIsComplete] = useState<boolean>(false); // 新增狀態
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const stepsRef = useRef<Step[]>([]);
     const currentStepRef = useRef<number>(0);
@@ -56,6 +57,9 @@ export const useEventLoop = () => {
     };
 
     const executeCode = useCallback(() => {
+        stopInterval();
+
+        // 重置狀態
         setIsRunning(true);
         setSteps([]);
         setCurrentStep(0);
@@ -64,6 +68,10 @@ export const useEventLoop = () => {
         setMicroTaskQueue([]);
         setLog([]);
         setWebApis([]);
+        setIsComplete(false); // 重置完成狀態
+
+        stepsRef.current = [];
+        currentStepRef.current = 0;
 
         const sandbox = {
             setTimeout: mockSetTimeout(setSteps),
@@ -73,59 +81,57 @@ export const useEventLoop = () => {
 
         try {
             const wrappedCode = `
-                async function runCode() {
-                    ${code}
-                }
-                runCode();
-            `;
-
+            async function runCode() {
+                ${code}
+            }
+            runCode();
+        `;
             const runInSandbox = new Function(...Object.keys(sandbox), wrappedCode);
             runInSandbox(...Object.values(sandbox));
+
             startInterval();
         } catch (error) {
             setLog(prev => [...prev, `Error: ${(error as Error).message}`]);
         }
-    }, [code]);
+    }, [code, stopInterval, startInterval]);
 
     const applyStep = useCallback((step: Step) => {
-        // console.log(`Applying step: ${step.type}, line: ${step.lineNumber}`);
-        // 確認步驟是同步或需要更新行號
         if (step.lineNumber !== undefined && step.lineNumber !== null) {
-            setCurrentLine(step.lineNumber); // 更新行號
+            setCurrentLine(step.lineNumber);
         }
-        
+
         switch (step.type) {
             case 'stack':
                 setStack(prev => [...prev, step.data!]);
-                setCurrentLine(step.lineNumber!); // 使用 lineNumber
+                setCurrentLine(step.lineNumber!);
                 break;
             case 'removeFromStack':
                 setStack(prev => prev.filter(item => item !== step.data));
                 break;
             case 'queue':
                 setQueue(prev => [...prev, step.data!]);
-                setCurrentLine(step.lineNumber!); // 使用 lineNumber
+                setCurrentLine(step.lineNumber!);
                 break;
             case 'removeFromQueue':
                 setQueue(prev => prev.filter(item => item !== step.data));
                 break;
             case 'microTaskQueue':
                 setMicroTaskQueue(prev => [...prev, step.data!]);
-                setCurrentLine(step.lineNumber!); // 使用 lineNumber
+                setCurrentLine(step.lineNumber!);
                 break;
             case 'removeFromMicroTaskQueue':
                 setMicroTaskQueue(prev => prev.filter(item => item !== step.data));
                 break;
             case 'webApi':
                 setWebApis(prev => [...prev, step.data!]);
-                setCurrentLine(step.lineNumber!); // 使用 lineNumber
+                setCurrentLine(step.lineNumber!);
                 break;
             case 'removeFromWebApi':
                 setWebApis(prev => prev.filter(item => item !== step.data));
                 break;
             case 'log':
                 setLog(prev => [...prev, step.data!]);
-                setCurrentLine(step.lineNumber!); // 使用 lineNumber
+                setCurrentLine(step.lineNumber!);
                 break;
             case 'spin':
                 setIsSpinning(true);
@@ -137,16 +143,15 @@ export const useEventLoop = () => {
     const nextStep = useCallback(() => {
         if (currentStepRef.current < stepsRef.current.length) {
             applyStep(stepsRef.current[currentStepRef.current]);
-            setCurrentStep(prev => {
-                const newStep = prev + 1;
-                return newStep;
-            });
+            setCurrentStep(prev => prev + 1);
             currentStepRef.current += 1;
         }
 
+        // 判斷程式是否執行到最後一步
         if (currentStepRef.current === stepsRef.current.length) {
             setIsRunning(false);
             stopInterval();
+            setIsComplete(true); // 設置完成狀態
         }
     }, [applyStep, stopInterval]);
 
@@ -154,14 +159,12 @@ export const useEventLoop = () => {
         if (currentStep > 0) {
             setCurrentStep(prev => prev - 1);
 
-            // 重置所有狀態
             setStack([]);
             setQueue([]);
             setMicroTaskQueue([]);
             setLog([]);
             setWebApis([]);
 
-            // 應用之前的步驟，直到 currentStep - 1
             for (let i = 0; i < currentStep - 1; i++) {
                 applyStep(steps[i]);
             }
@@ -180,6 +183,7 @@ export const useEventLoop = () => {
         isRunning,
         isPaused,
         isSpinning,
+        isComplete,
         currentStep,
         steps,
         executeCode,

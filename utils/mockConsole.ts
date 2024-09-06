@@ -14,5 +14,5 @@ export const mockConsoleLog = (setSteps: React.Dispatch<React.SetStateAction<Ste
         { type: 'removeFromStack', data: `console.log("${message}")`, lineNumber } // 移除 stack
     ]);
 
-    console.log(...args); // 實際執行 console.log
+    // console.log(...args); // 實際執行 console.log
 };
