@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,9 +12,7 @@ interface CodeEditorProps {
   currentLine: number;
 }
 
-const addHighlight = StateEffect.define<{ from: number; to: number }>({
-  map: ({ from, to }, change) => ({ from: change.mapPos(from), to: change.mapPos(to) }),
-});
+const addHighlight = StateEffect.define<{ line: number }>({});
 
 const highlightField = StateField.define<DecorationSet>({
   create() {
@@ -24,8 +22,10 @@ const highlightField = StateField.define<DecorationSet>({
     highlights = highlights.map(tr.changes);
     for (const e of tr.effects) {
       if (e.is(addHighlight)) {
+        const line = tr.state.doc.line(e.value.line);
         highlights = highlights.update({
-          add: [highlightDecoration.range(e.value.from, e.value.to)],
+          filter: (from) => from !== line.from,
+          add: [highlightDecoration.range(line.from, line.from)]
         });
       }
     }
@@ -35,10 +35,12 @@ const highlightField = StateField.define<DecorationSet>({
 });
 
 const highlightDecoration = Decoration.line({
-  attributes: { class: "bg-blue-500 bg-opacity-30" }
+  attributes: { style: "background-color: rgba(255, 255, 0);" }
 });
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ code, setCode, currentLine }) => {
+  const editorRef = useRef<EditorView | null>(null);
+
   useEffect(() => {
     setCode(`console.log("begins");
 
@@ -61,32 +63,41 @@ new Promise(function (resolve, reject) {
     console.log(res);
   }, 0);
 });`);
-  }, []);
+  }, [setCode]);
 
-  const highlightCurrentLine = (view: EditorView) => {
-    const line = view.state.doc.line(currentLine);
-    view.dispatch({
-      effects: addHighlight.of({ from: line.from, to: line.to }),
-    });
-  };
+  useEffect(() => {
+    if (editorRef.current && currentLine > 0) {
+      const view = editorRef.current;
+      const docLineCount = view.state.doc.lines;
+
+      // console.log(currentLine,"=========currentLine😍😍😍")
+      // 調整行號基準
+      const adjustedLine = currentLine - 4;
+      if (adjustedLine <= docLineCount) {
+        view.dispatch({
+          effects: addHighlight.of({ line: adjustedLine })
+        });
+      }
+    }
+  }, [currentLine]);
+
 
   return (
     <Card className="h-1/2 max-h-1/2 relative overflow-hidden flex flex-col">
       <CardHeader>
         <CardTitle>Code Editor</CardTitle>
       </CardHeader>
-      <CardContent className='p-0 flex-grow  overflow-y-scroll '>
+      <CardContent className='p-0 flex-grow overflow-y-scroll'>
         <CodeMirror
           value={code}
           onChange={(value) => setCode(value)}
-          // height="100%"
           theme="dark"
           extensions={[
             javascript({ jsx: true }),
             highlightField,
             EditorView.updateListener.of((update) => {
-              if (update.docChanged || update.viewportChanged) {
-                highlightCurrentLine(update.view);
+              if (update.view) {
+                editorRef.current = update.view;
               }
             }),
           ]}
@@ -95,6 +106,6 @@ new Promise(function (resolve, reject) {
       </CardContent>
     </Card>
   );
-}
+};
 
 export default CodeEditor;

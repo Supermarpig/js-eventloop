@@ -24,6 +24,7 @@ const EventLoopVisualizer: React.FC = () => {
         isSpinning,
         currentStep,
         steps,
+        currentLine,
         executeCode,
         nextStep,
         prevStep,
@@ -56,10 +57,10 @@ const EventLoopVisualizer: React.FC = () => {
             </div>
             <div className="flex h-[calc(100%_-_52px)]">
                 <div className="w-1/3 pr-4 flex flex-col gap-4 h-full">
-                    <CodeEditor code={code} setCode={setCode} currentLine={0} />
+                    <CodeEditor code={code} setCode={setCode}  currentLine={currentLine} />
                     <LogDisplay log={log} />
                 </div>
-                <div className="flex flex-wrap gap-4 h-full w-full">
+                <div className="w-2/3 flex flex-wrap gap-4 h-full">
                     <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(36%_-_32px)]">
                         <CallStackDisplay stack={stack} />
                     </div>

@@ -3,4 +3,5 @@ export type StepType = 'stack' | 'removeFromStack' | 'queue' | 'removeFromQueue'
 export interface Step {
     type: StepType;
     data?: string;
+    lineNumber?: number; // 新增 lineNumber 屬性
 }

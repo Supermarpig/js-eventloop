@@ -6,6 +6,7 @@ import { MockPromise } from '../utils/MockPromise';
 
 export const useEventLoop = () => {
     const [code, setCode] = useState<string>('');
+    const [currentLine, setCurrentLine] = useState<number>(0);
     const [stack, setStack] = useState<string[]>([]);
     const [queue, setQueue] = useState<string[]>([]);
     const [microTaskQueue, setMicroTaskQueue] = useState<string[]>([]);
@@ -24,7 +25,10 @@ export const useEventLoop = () => {
         stepsRef.current = steps;
     }, [steps]);
 
-    const createStep = (type: Step['type'], data?: string): Step => ({ type, data });
+    const createStep = (type: Step['type'], data?: string, lineNumber?: number): Step => {
+        console.log(`Step created: type=${type}, lineNumber=${lineNumber}`);
+        return { type, data, lineNumber };
+    };
 
     const startInterval = () => {
         if (!intervalRef.current) {
@@ -84,33 +88,44 @@ export const useEventLoop = () => {
     }, [code]);
 
     const applyStep = useCallback((step: Step) => {
+        // console.log(`Applying step: ${step.type}, line: ${step.lineNumber}`);
+        // 確認步驟是同步或需要更新行號
+        if (step.lineNumber !== undefined && step.lineNumber !== null) {
+            setCurrentLine(step.lineNumber); // 更新行號
+        }
+        
         switch (step.type) {
             case 'stack':
                 setStack(prev => [...prev, step.data!]);
+                setCurrentLine(step.lineNumber!); // 使用 lineNumber
                 break;
             case 'removeFromStack':
                 setStack(prev => prev.filter(item => item !== step.data));
                 break;
             case 'queue':
                 setQueue(prev => [...prev, step.data!]);
+                setCurrentLine(step.lineNumber!); // 使用 lineNumber
                 break;
             case 'removeFromQueue':
                 setQueue(prev => prev.filter(item => item !== step.data));
                 break;
             case 'microTaskQueue':
                 setMicroTaskQueue(prev => [...prev, step.data!]);
+                setCurrentLine(step.lineNumber!); // 使用 lineNumber
                 break;
             case 'removeFromMicroTaskQueue':
                 setMicroTaskQueue(prev => prev.filter(item => item !== step.data));
                 break;
             case 'webApi':
                 setWebApis(prev => [...prev, step.data!]);
+                setCurrentLine(step.lineNumber!); // 使用 lineNumber
                 break;
             case 'removeFromWebApi':
                 setWebApis(prev => prev.filter(item => item !== step.data));
                 break;
             case 'log':
                 setLog(prev => [...prev, step.data!]);
+                setCurrentLine(step.lineNumber!); // 使用 lineNumber
                 break;
             case 'spin':
                 setIsSpinning(true);
@@ -138,11 +153,15 @@ export const useEventLoop = () => {
     const prevStep = () => {
         if (currentStep > 0) {
             setCurrentStep(prev => prev - 1);
+
+            // 重置所有狀態
             setStack([]);
             setQueue([]);
             setMicroTaskQueue([]);
             setLog([]);
             setWebApis([]);
+
+            // 應用之前的步驟，直到 currentStep - 1
             for (let i = 0; i < currentStep - 1; i++) {
                 applyStep(steps[i]);
             }
@@ -152,6 +171,7 @@ export const useEventLoop = () => {
     return {
         code,
         setCode,
+        currentLine,
         stack,
         queue,
         microTaskQueue,
