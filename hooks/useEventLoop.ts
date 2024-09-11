@@ -24,7 +24,6 @@ export const useEventLoop = () => {
     const stepsRef = useRef<Step[]>([]);
     const currentStepRef = useRef<number>(0);
 
-
     useEffect(() => {
         if (typeof window !== 'undefined') {
             stepsRef.current = steps;
@@ -67,7 +66,7 @@ export const useEventLoop = () => {
             address,
             name,
             value: JSON.stringify(obj, (key, value) => {
-                console.log(value, "===========value😍😍😍")
+                console.log(value, "===========value😍😍😍");
                 if (typeof value === 'object' && value !== null) {
                     return value;
                 }
@@ -101,46 +100,48 @@ export const useEventLoop = () => {
             iframe.style.display = 'none';
             document.body.appendChild(iframe);
             const sandboxWindow = iframe.contentWindow;
-            const sandboxContext = sandboxWindow?.Object.create(null);
-
-            if (sandboxContext) {
-                sandboxContext.setTimeout = mockSetTimeout(setSteps);
-                sandboxContext.console = { log: mockConsoleLog(setSteps) };
-                sandboxContext.Promise = MockPromise;
-
-                // 代理 Object 構造函數
-                sandboxContext.Object = new Proxy(sandboxWindow.Object, {
-                    construct(target, args, newTarget) {
-                        const obj = Reflect.construct(target, args, newTarget);
-                        addToHeap(obj, 'Anonymous Object');
-                        return new Proxy(obj, {
-                            set(target, prop, value) {
-                                target[prop] = value;
-                                addToHeap(target, 'Updated Object');
-                                return true;
-                            }
-                        });
-                    },
-                    get(target, prop) {
-                        if (prop === 'create') {
-                            return function (...args: any) {
-                                const obj = target.create(...args);
-                                addToHeap(obj, 'Object.create');
-                                return new Proxy(obj, {
-                                    set(target, prop, value) {
-                                        target[prop] = value;
-                                        addToHeap(target, 'Updated Object.create');
-                                        return true;
-                                    }
-                                });
-                            };
-                        }
-                        return target[prop];
-                    }
-                });
-
-                sandboxContext.Array = sandboxWindow.Array;
+            if (!sandboxWindow) {
+                throw new Error('Failed to create sandbox');
             }
+
+            const sandboxContext = Object.create(null);
+
+            sandboxContext.setTimeout = mockSetTimeout(setSteps);
+            sandboxContext.console = { log: mockConsoleLog(setSteps) };
+            sandboxContext.Promise = MockPromise;
+
+            // 代理 Object 構造函數
+            sandboxContext.Object = new Proxy(Object, {
+                construct(target, args, newTarget) {
+                    const obj = Reflect.construct(target, args, newTarget);
+                    addToHeap(obj, 'Anonymous Object');
+                    return new Proxy(obj, {
+                        set(target, prop, value) {
+                            target[prop] = value;
+                            addToHeap(target, 'Updated Object');
+                            return true;
+                        }
+                    });
+                },
+                get(target: ObjectConstructor, prop: keyof ObjectConstructor) {
+                    if (prop === 'create') {
+                        return function (...args: [any]) { 
+                            const obj = target.create(...args);
+                            addToHeap(obj, 'Object.create');
+                            return new Proxy(obj, {
+                                set(target, prop: string | symbol, value: any) {
+                                    target[prop] = value;
+                                    addToHeap(target, 'Updated Object.create');
+                                    return true;
+                                }
+                            });
+                        };
+                    }
+                    return target[prop as keyof ObjectConstructor]; 
+                }
+            });
+
+            sandboxContext.Array = Array;
 
             return sandboxContext;
         };
@@ -207,7 +208,7 @@ export const useEventLoop = () => {
                 break;
             case 'heap':
                 if (step.heapData) {
-                    setHeap(prev => [...prev, step.heapData]);
+                    setHeap(prev => [...prev, step.heapData!]);
                 }
                 break;
             case 'removeFromHeap':

@@ -15,9 +15,7 @@ const HeapDisplay: React.FC<HeapDisplayProps> = ({ heap }) => {
 
     // address: "0x289"
     // name:"obj"
-    // value: "{
-    // name:"毛毛"
-    // }"
+    // value: "{name:"毛毛"}"
 
     return (
         <div className="bg-gray-800 p-4 rounded-lg">
