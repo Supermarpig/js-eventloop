@@ -18,9 +18,12 @@ export const useEventLoop = () => {
     const [currentStep, setCurrentStep] = useState<number>(0);
     const [steps, setSteps] = useState<Step[]>([]);
     const [isComplete, setIsComplete] = useState<boolean>(false); // 新增狀態
+    const [heap, setHeap] = useState<{ address: string; value: string }[]>([]);
+
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const stepsRef = useRef<Step[]>([]);
     const currentStepRef = useRef<number>(0);
+
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -28,9 +31,9 @@ export const useEventLoop = () => {
         }
     }, [steps]);
 
-    const createStep = (type: Step['type'], data?: string, lineNumber?: number): Step => {
+    const createStep = (type: Step['type'], data?: string, lineNumber?: number, heapData?: { address: string; value: string }): Step => {
         console.log(`Step created: type=${type}, lineNumber=${lineNumber}`);
-        return { type, data, lineNumber };
+        return { type, data, lineNumber, heapData };
     };
 
     const startInterval = () => {
@@ -58,10 +61,27 @@ export const useEventLoop = () => {
         }
     };
 
+    const addToHeap = (obj: any, name: string) => {
+        const address = `0x${Math.floor(Math.random() * 1000).toString(16).padStart(3, '0')}`;
+        const heapData = {
+            address,
+            name,
+            value: JSON.stringify(obj, (key, value) => {
+                console.log(value, "===========value😍😍😍")
+                if (typeof value === 'object' && value !== null) {
+                    return value;
+                }
+                return value;
+            }, 2)
+        };
+        setSteps(prev => [...prev, createStep('heap', undefined, undefined, heapData)]);
+        return address;
+    };
+
     const executeCode = useCallback(() => {
         stopInterval();
 
-        // 重置狀態
+        // Reset states
         setIsRunning(true);
         setSteps([]);
         setCurrentStep(0);
@@ -70,26 +90,72 @@ export const useEventLoop = () => {
         setMicroTaskQueue([]);
         setLog([]);
         setWebApis([]);
-        setIsComplete(false); // 重置完成狀態
+        setHeap([]);
+        setIsComplete(false);
 
         stepsRef.current = [];
         currentStepRef.current = 0;
 
-        const sandbox = {
-            setTimeout: mockSetTimeout(setSteps),
-            console: { log: mockConsoleLog(setSteps) },
-            Promise: MockPromise,
+        const createSandbox = () => {
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+            const sandboxWindow = iframe.contentWindow;
+            const sandboxContext = sandboxWindow?.Object.create(null);
+
+            if (sandboxContext) {
+                sandboxContext.setTimeout = mockSetTimeout(setSteps);
+                sandboxContext.console = { log: mockConsoleLog(setSteps) };
+                sandboxContext.Promise = MockPromise;
+
+                // 代理 Object 構造函數
+                sandboxContext.Object = new Proxy(sandboxWindow.Object, {
+                    construct(target, args, newTarget) {
+                        const obj = Reflect.construct(target, args, newTarget);
+                        addToHeap(obj, 'Anonymous Object');
+                        return new Proxy(obj, {
+                            set(target, prop, value) {
+                                target[prop] = value;
+                                addToHeap(target, 'Updated Object');
+                                return true;
+                            }
+                        });
+                    },
+                    get(target, prop) {
+                        if (prop === 'create') {
+                            return function (...args: any) {
+                                const obj = target.create(...args);
+                                addToHeap(obj, 'Object.create');
+                                return new Proxy(obj, {
+                                    set(target, prop, value) {
+                                        target[prop] = value;
+                                        addToHeap(target, 'Updated Object.create');
+                                        return true;
+                                    }
+                                });
+                            };
+                        }
+                        return target[prop];
+                    }
+                });
+
+                sandboxContext.Array = sandboxWindow.Array;
+            }
+
+            return sandboxContext;
         };
+
+        const sandbox = createSandbox();
 
         try {
             const wrappedCode = `
-            async function runCode() {
-                ${code}
-            }
-            runCode();
-        `;
-            const runInSandbox = new Function(...Object.keys(sandbox), wrappedCode);
-            runInSandbox(...Object.values(sandbox));
+                async function runCode() {
+                    ${code}
+                }
+                runCode();
+            `;
+            const runInSandbox = new Function('sandbox', `with (sandbox) { ${wrappedCode} }`);
+            runInSandbox(sandbox);
 
             startInterval();
         } catch (error) {
@@ -139,6 +205,16 @@ export const useEventLoop = () => {
                 setIsSpinning(true);
                 setTimeout(() => setIsSpinning(false), 500);
                 break;
+            case 'heap':
+                if (step.heapData) {
+                    setHeap(prev => [...prev, step.heapData]);
+                }
+                break;
+            case 'removeFromHeap':
+                if (step.heapData) {
+                    setHeap(prev => prev.filter(item => item.address !== step.heapData?.address));
+                }
+                break;
         }
     }, []);
 
@@ -182,6 +258,7 @@ export const useEventLoop = () => {
         microTaskQueue,
         log,
         webApis,
+        heap,
         isRunning,
         isPaused,
         isSpinning,

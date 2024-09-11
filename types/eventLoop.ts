@@ -1,7 +1,8 @@
-export type StepType = 'stack' | 'removeFromStack' | 'queue' | 'removeFromQueue' | 'microTaskQueue' | 'removeFromMicroTaskQueue' | 'webApi' | 'removeFromWebApi' | 'log' | 'spin';
+export type StepType = 'stack' | 'removeFromStack' | 'queue' | 'removeFromQueue' | 'microTaskQueue' | 'removeFromMicroTaskQueue' | 'webApi' | 'removeFromWebApi' | 'log' | 'spin' | 'heap' | 'removeFromHeap';
 
 export interface Step {
     type: StepType;
     data?: string;
-    lineNumber?: number; // 新增 lineNumber 屬性
+    lineNumber?: number;
+    heapData?: { address: string; value: string };
 }

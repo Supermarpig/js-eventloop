@@ -7,7 +7,7 @@ import LogDisplay from './LogDisplay';
 import CallStackDisplay from './CallStackDisplay';
 import WebApisDisplay from './WebApisDisplay';
 import QueueDisplay from './QueueDisplay';
-import EventLoopSpinner from './EventLoopSpinner';
+import HeapDisplay from './HeapDisplay';
 import { useEventLoop } from '../hooks/useEventLoop';
 
 const EventLoopVisualizer: React.FC = () => {
@@ -26,6 +26,7 @@ const EventLoopVisualizer: React.FC = () => {
         currentStep,
         steps,
         currentLine,
+        heap,
         executeCode,
         nextStep,
         prevStep,
@@ -77,6 +78,9 @@ const EventLoopVisualizer: React.FC = () => {
                     {/* <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(34%_-_32px)]"> */}
                         {/* <EventLoopSpinner isSpinning={isSpinning} /> */}
                     {/* </div> */}
+                    <div className="min-w-[calc(50%-8px)] flex-grow h-[calc(36%_-_32px)]">
+                        <HeapDisplay heap={heap} />
+                    </div>
                 </div>
             </div>
         </div>
