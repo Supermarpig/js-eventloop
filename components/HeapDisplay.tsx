@@ -11,7 +11,7 @@ interface HeapDisplayProps {
 
 const HeapDisplay: React.FC<HeapDisplayProps> = ({ heap }) => {
 
-    // console.log(heap,'=======heap😍😍😍')
+    console.log(heap,'=======heap😍😍😍')
 
     // address: "0x289"
     // name:"obj"

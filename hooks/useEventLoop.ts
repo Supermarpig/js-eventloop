@@ -17,12 +17,13 @@ export const useEventLoop = () => {
     const [isSpinning, setIsSpinning] = useState<boolean>(false);
     const [currentStep, setCurrentStep] = useState<number>(0);
     const [steps, setSteps] = useState<Step[]>([]);
-    const [isComplete, setIsComplete] = useState<boolean>(false); // 新增狀態
-    const [heap, setHeap] = useState<{ address: string; value: string }[]>([]);
+    const [isComplete, setIsComplete] = useState<boolean>(false);
+    const [heap, setHeap] = useState<{ address: string; name: string[]; value: string }[]>([]);
 
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const stepsRef = useRef<Step[]>([]);
     const currentStepRef = useRef<number>(0);
+    const objectMapRef = useRef(new WeakMap<object, string>());
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -30,7 +31,7 @@ export const useEventLoop = () => {
         }
     }, [steps]);
 
-    const createStep = (type: Step['type'], data?: string, lineNumber?: number, heapData?: { address: string; value: string }): Step => {
+    const createStep = (type: Step['type'], data?: string, lineNumber?: number, heapData?: { address: string; value: string; name: string[] }): Step => {
         console.log(`Step created: type=${type}, lineNumber=${lineNumber}`);
         return { type, data, lineNumber, heapData };
     };
@@ -60,22 +61,85 @@ export const useEventLoop = () => {
         }
     };
 
+    const variableMap = new WeakMap(); // 弱映射來追蹤對象與變量名的對應關係
+
     const addToHeap = (obj: any, name: string) => {
-        const address = `0x${Math.floor(Math.random() * 1000).toString(16).padStart(3, '0')}`;
-        const heapData = {
-            address,
-            name,
-            value: JSON.stringify(obj, (key, value) => {
-                console.log(value, "===========value😍😍😍");
-                if (typeof value === 'object' && value !== null) {
-                    return value;
-                }
-                return value;
-            }, 2)
-        };
-        setSteps(prev => [...prev, createStep('heap', undefined, undefined, heapData)]);
-        return address;
+        let address = objectMapRef.current.get(obj);
+        let existingHeapEntry = heap.find(entry => entry.address === address);
+
+        if (existingHeapEntry) {
+            // 對象已存在於堆中，更新其名稱array
+            if (!existingHeapEntry.name.includes(name)) {
+                const updatedNames = [...existingHeapEntry.name, name];
+                setHeap(prevHeap =>
+                    prevHeap.map(entry =>
+                        entry.address === address
+                            ? { ...entry, name: updatedNames }
+                            : entry
+                    )
+                );
+            }
+        } else {
+            // 創建新的堆條目
+            address = `0x${Math.floor(Math.random() * 1000).toString(16).padStart(3, '0')}`;
+            objectMapRef.current.set(obj, address);
+            const newHeapEntry = {
+                address,
+                name: [name],
+                value: JSON.stringify(obj, null, 2)
+            };
+            setHeap(prevHeap => [...prevHeap, newHeapEntry]);
+        }
+
+        // 創建一個新的步驟來反映堆的變化
+        const heapStep = createStep('heap', undefined, undefined, {
+            address: address!,
+            name: existingHeapEntry ? existingHeapEntry.name : [name],
+            value: JSON.stringify(obj, null, 2)
+        });
+        setSteps(prevSteps => [...prevSteps, heapStep]);
     };
+
+    const createSandbox = () => {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        const sandboxWindow = iframe.contentWindow;
+        if (!sandboxWindow) {
+            throw new Error('Failed to create sandbox');
+        }
+
+        const sandboxContext = Object.create(null);
+
+        sandboxContext.setTimeout = mockSetTimeout(setSteps);
+        sandboxContext.console = { log: mockConsoleLog(setSteps) };
+        sandboxContext.Promise = MockPromise;
+
+        // 代理 Object 構造函數
+        sandboxContext.Object = new Proxy(Object, {
+            construct(target, args, newTarget) {
+                const obj = Reflect.construct(target, args, newTarget);
+                return new Proxy(obj, {
+                    set(target, prop, value, receiver) {
+                        const result = Reflect.set(target, prop, value, receiver);
+                        addToHeap(target, 'Anonymous Object');
+                        return result;
+                    }
+                });
+            }
+        });
+
+        // 代理全局變數賦值
+        return new Proxy(sandboxContext, {
+            set(target, prop, value) {
+                if (typeof value === 'object' && value !== null) {
+                    addToHeap(value, prop.toString());
+                }
+                return Reflect.set(target, prop, value);
+            }
+        });
+    };
+
 
     const executeCode = useCallback(() => {
         stopInterval();
@@ -91,70 +155,20 @@ export const useEventLoop = () => {
         setWebApis([]);
         setHeap([]);
         setIsComplete(false);
+        objectMapRef.current = new WeakMap();
 
         stepsRef.current = [];
         currentStepRef.current = 0;
-
-        const createSandbox = () => {
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            document.body.appendChild(iframe);
-            const sandboxWindow = iframe.contentWindow;
-            if (!sandboxWindow) {
-                throw new Error('Failed to create sandbox');
-            }
-
-            const sandboxContext = Object.create(null);
-
-            sandboxContext.setTimeout = mockSetTimeout(setSteps);
-            sandboxContext.console = { log: mockConsoleLog(setSteps) };
-            sandboxContext.Promise = MockPromise;
-
-            // 代理 Object 構造函數
-            sandboxContext.Object = new Proxy(Object, {
-                construct(target, args, newTarget) {
-                    const obj = Reflect.construct(target, args, newTarget);
-                    addToHeap(obj, 'Anonymous Object');
-                    return new Proxy(obj, {
-                        set(target, prop, value) {
-                            target[prop] = value;
-                            addToHeap(target, 'Updated Object');
-                            return true;
-                        }
-                    });
-                },
-                get(target: ObjectConstructor, prop: keyof ObjectConstructor) {
-                    if (prop === 'create') {
-                        return function (...args: [any]) { 
-                            const obj = target.create(...args);
-                            addToHeap(obj, 'Object.create');
-                            return new Proxy(obj, {
-                                set(target, prop: string | symbol, value: any) {
-                                    target[prop] = value;
-                                    addToHeap(target, 'Updated Object.create');
-                                    return true;
-                                }
-                            });
-                        };
-                    }
-                    return target[prop as keyof ObjectConstructor]; 
-                }
-            });
-
-            sandboxContext.Array = Array;
-
-            return sandboxContext;
-        };
 
         const sandbox = createSandbox();
 
         try {
             const wrappedCode = `
-                async function runCode() {
-                    ${code}
-                }
-                runCode();
-            `;
+            async function runCode() {
+                ${code}
+            }
+            runCode();
+        `;
             const runInSandbox = new Function('sandbox', `with (sandbox) { ${wrappedCode} }`);
             runInSandbox(sandbox);
 
@@ -208,7 +222,12 @@ export const useEventLoop = () => {
                 break;
             case 'heap':
                 if (step.heapData) {
-                    setHeap(prev => [...prev, step.heapData!]);
+                    // 檢查 step.heapData 是否缺少 name，並補上 name 屬性
+                    const heapDataWithName = {
+                        ...step.heapData,
+                        name: step.heapData.name || [] // 確保有 name 屬性，這裡假設 name 是一個空陣列或現有的陣列
+                    };
+                    setHeap(prev => [...prev, heapDataWithName]);
                 }
                 break;
             case 'removeFromHeap':

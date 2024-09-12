@@ -4,5 +4,5 @@ export interface Step {
     type: StepType;
     data?: string;
     lineNumber?: number;
-    heapData?: { address: string; value: string };
+    heapData?: { address: string; value: string; name: string[] };
 }
