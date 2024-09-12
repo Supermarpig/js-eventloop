@@ -61,8 +61,6 @@ export const useEventLoop = () => {
         }
     };
 
-    const variableMap = new WeakMap(); // 弱映射來追蹤對象與變量名的對應關係
-
     const addToHeap = (obj: any, name: string) => {
         let address = objectMapRef.current.get(obj);
         let existingHeapEntry = heap.find(entry => entry.address === address);
@@ -139,7 +137,6 @@ export const useEventLoop = () => {
             }
         });
     };
-
 
     const executeCode = useCallback(() => {
         stopInterval();
