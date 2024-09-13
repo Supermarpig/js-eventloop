@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowBigLeft, ArrowBigRight, Play, Pause } from 'lucide-react';
+import { ArrowBigLeft, ArrowBigRight, Play, Pause, Square } from 'lucide-react';
 import CodeEditor from './CodeEditor';
 import LogDisplay from './LogDisplay';
 import CallStackDisplay from './CallStackDisplay';
@@ -30,7 +30,8 @@ const EventLoopVisualizer: React.FC = () => {
         executeCode,
         nextStep,
         prevStep,
-        togglePause
+        togglePause,
+        stopExecution 
     } = useEventLoop();
 
     return (
@@ -55,6 +56,9 @@ const EventLoopVisualizer: React.FC = () => {
                             <Pause className="mr-2 h-4 w-4" /> Pause
                         </>
                     )}
+                </Button>
+                <Button onClick={stopExecution} disabled={!isRunning} className="mr-2">
+                    <Square className="mr-2 h-4 w-4" /> Stop
                 </Button>
             </div>
             <div className="flex h-[calc(100%_-_52px)]">

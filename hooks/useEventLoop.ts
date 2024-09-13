@@ -302,6 +302,27 @@ export const useEventLoop = () => {
         }
     };
 
+    const stopExecution = useCallback(() => {
+        stopInterval();
+        setIsRunning(false);
+        setIsPaused(false);
+        setIsSpinning(false);
+        setCurrentStep(0);
+        setSteps([]);
+        setCurrentLine(0);
+        setStack([]);
+        setQueue([]);
+        setMicroTaskQueue([]);
+        setLog([]);
+        setWebApis([]);
+        setHeap([]);
+        setIsComplete(false);
+        objectMapRef.current = new WeakMap();
+
+        stepsRef.current = [];
+        currentStepRef.current = 0;
+    }, [stopInterval]);
+
     return {
         code,
         setCode,
@@ -321,6 +342,7 @@ export const useEventLoop = () => {
         executeCode,
         nextStep,
         prevStep,
-        togglePause
+        togglePause,
+        stopExecution 
     };
 };
