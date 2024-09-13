@@ -23,7 +23,7 @@ export const useEventLoop = () => {
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const stepsRef = useRef<Step[]>([]);
     const currentStepRef = useRef<number>(0);
-    const objectMapRef = useRef(new WeakMap<object, string>());
+    const objectMapRef = useRef(new WeakMap<object, string>()); 
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -61,42 +61,66 @@ export const useEventLoop = () => {
         }
     };
 
-    const addToHeap = (obj: any, name: string) => {
+    const addToHeap = useCallback((obj: any, varName: string) => {
         let address = objectMapRef.current.get(obj);
-        let existingHeapEntry = heap.find(entry => entry.address === address);
 
-        if (existingHeapEntry) {
-            // 對象已存在於堆中，更新其名稱array
-            if (!existingHeapEntry.name.includes(name)) {
-                const updatedNames = [...existingHeapEntry.name, name];
-                setHeap(prevHeap =>
-                    prevHeap.map(entry =>
-                        entry.address === address
-                            ? { ...entry, name: updatedNames }
-                            : entry
-                    )
-                );
-            }
-        } else {
-            // 創建新的堆條目
+        if (!address) {
+            // 生成新的地址並映射對象
             address = `0x${Math.floor(Math.random() * 1000).toString(16).padStart(3, '0')}`;
             objectMapRef.current.set(obj, address);
-            const newHeapEntry = {
-                address,
-                name: [name],
-                value: JSON.stringify(obj, null, 2)
-            };
-            setHeap(prevHeap => [...prevHeap, newHeapEntry]);
         }
 
-        // 創建一個新的步驟來反映堆的變化
-        const heapStep = createStep('heap', undefined, undefined, {
-            address: address!,
-            name: existingHeapEntry ? existingHeapEntry.name : [name],
-            value: JSON.stringify(obj, null, 2)
+        setHeap(prevHeap => {
+            const existingEntry = prevHeap.find(entry => entry.address === address);
+            let updatedEntry: { address: string; name: string[]; value: string };
+
+            if (existingEntry) {
+                if (!existingEntry.name.includes(varName)) {
+                    updatedEntry = {
+                        ...existingEntry,
+                        name: [...existingEntry.name, varName],
+                        value: JSON.stringify(obj, null, 2)
+                    };
+                } else {
+                    updatedEntry = {
+                        ...existingEntry,
+                        value: JSON.stringify(obj, null, 2)
+                    };
+                }
+                // 更新步驟
+                setSteps(prevSteps => [...prevSteps, createStep('heap', undefined, undefined, updatedEntry)]);
+                return prevHeap.map(entry => entry.address === address ? updatedEntry : entry);
+            } else {
+                updatedEntry = {
+                    address,
+                    name: [varName],
+                    value: JSON.stringify(obj, null, 2)
+                };
+                // 更新步驟
+                setSteps(prevSteps => [...prevSteps, createStep('heap', undefined, undefined, updatedEntry)]);
+                return [...prevHeap, updatedEntry];
+            }
         });
-        setSteps(prevSteps => [...prevSteps, heapStep]);
-    };
+    }, [createStep]);
+
+    const updateHeapValue = useCallback((obj: any) => {
+        const address = objectMapRef.current.get(obj);
+        if (address) {
+            setHeap(prevHeap => {
+                const updatedHeap = prevHeap.map(entry => {
+                    if (entry.address === address) {
+                        const updatedEntry = { ...entry, value: JSON.stringify(obj, null, 2) };
+                        // 更新步驟
+                        setSteps(prevSteps => [...prevSteps, createStep('heap', undefined, undefined, updatedEntry)]);
+                        return updatedEntry;
+                    } else {
+                        return entry;
+                    }
+                });
+                return updatedHeap;
+            });
+        }
+    }, [createStep]);
 
     const createSandbox = () => {
         const iframe = document.createElement('iframe');
@@ -108,7 +132,6 @@ export const useEventLoop = () => {
         }
 
         const sandboxContext = Object.create(null);
-
         sandboxContext.setTimeout = mockSetTimeout(setSteps);
         sandboxContext.console = { log: mockConsoleLog(setSteps) };
         sandboxContext.Promise = MockPromise;
@@ -117,10 +140,11 @@ export const useEventLoop = () => {
         sandboxContext.Object = new Proxy(Object, {
             construct(target, args, newTarget) {
                 const obj = Reflect.construct(target, args, newTarget);
+
                 return new Proxy(obj, {
                     set(target, prop, value, receiver) {
                         const result = Reflect.set(target, prop, value, receiver);
-                        addToHeap(target, 'Anonymous Object');
+                        updateHeapValue(target); 
                         return result;
                     }
                 });
@@ -141,7 +165,7 @@ export const useEventLoop = () => {
     const executeCode = useCallback(() => {
         stopInterval();
 
-        // Reset states
+        // 重置狀態
         setIsRunning(true);
         setSteps([]);
         setCurrentStep(0);
@@ -160,12 +184,17 @@ export const useEventLoop = () => {
         const sandbox = createSandbox();
 
         try {
+            // **預處理代碼，替換 'var' 宣告為 'sandbox.<variable> ='**
+            const processedCode = code.replace(/\bvar\s+([a-zA-Z_$][0-9a-zA-Z_$]*)/g, (match, p1) => {
+                return `sandbox.${p1}`;
+            });
+
             const wrappedCode = `
-            async function runCode() {
-                ${code}
-            }
-            runCode();
-        `;
+        async function runCode() {
+            ${processedCode}
+        }
+        runCode();
+    `;
             const runInSandbox = new Function('sandbox', `with (sandbox) { ${wrappedCode} }`);
             runInSandbox(sandbox);
 
@@ -174,6 +203,7 @@ export const useEventLoop = () => {
             setLog(prev => [...prev, `Error: ${(error as Error).message}`]);
         }
     }, [code, stopInterval, startInterval]);
+
 
     const applyStep = useCallback((step: Step) => {
         if (step.lineNumber !== undefined && step.lineNumber !== null) {
@@ -219,12 +249,16 @@ export const useEventLoop = () => {
                 break;
             case 'heap':
                 if (step.heapData) {
-                    // 檢查 step.heapData 是否缺少 name，並補上 name 屬性
-                    const heapDataWithName = {
-                        ...step.heapData,
-                        name: step.heapData.name || [] // 確保有 name 屬性，這裡假設 name 是一個空陣列或現有的陣列
-                    };
-                    setHeap(prev => [...prev, heapDataWithName]);
+                    setHeap(prev => {
+                        const existingEntryIndex = prev.findIndex(item => item.address === step.heapData!.address);
+                        if (existingEntryIndex !== -1) {
+                            const updatedHeap = [...prev];
+                            updatedHeap[existingEntryIndex] = step.heapData!;
+                            return updatedHeap;
+                        } else {
+                            return [...prev, step.heapData!];
+                        }
+                    });
                 }
                 break;
             case 'removeFromHeap':
@@ -246,7 +280,7 @@ export const useEventLoop = () => {
         if (currentStepRef.current === stepsRef.current.length) {
             setIsRunning(false);
             stopInterval();
-            setIsComplete(true); // 設置完成狀態
+            setIsComplete(true); // 設定完成狀態
         }
     }, [applyStep, stopInterval]);
 
@@ -254,11 +288,13 @@ export const useEventLoop = () => {
         if (currentStep > 0) {
             setCurrentStep(prev => prev - 1);
 
+            // 重置所有狀態
             setStack([]);
             setQueue([]);
             setMicroTaskQueue([]);
             setLog([]);
             setWebApis([]);
+            setHeap([]);
 
             for (let i = 0; i < currentStep - 1; i++) {
                 applyStep(steps[i]);

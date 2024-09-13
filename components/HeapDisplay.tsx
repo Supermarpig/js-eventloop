@@ -11,6 +11,9 @@ interface HeapDisplayProps {
 }
 
 const HeapDisplay: React.FC<HeapDisplayProps> = ({ heap }) => {
+
+    console.log(heap,"===================heap😍😍😍")
+
     return (
         <div className="bg-gray-800 p-4 rounded-lg">
             <h2 className="text-xl font-bold mb-4 text-white">Heap</h2>
