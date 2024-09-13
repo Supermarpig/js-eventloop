@@ -10,7 +10,7 @@ interface CodeEditorProps {
   code: string;
   setCode: React.Dispatch<React.SetStateAction<string>>;
   currentLine: number;
-  isComplete: boolean; // 增加一個表示是否執行完成的狀態
+  isComplete: boolean; // Indicates whether execution is complete
 }
 
 const addHighlight = StateEffect.define<{ line: number }>({});
@@ -57,9 +57,10 @@ const executedDecoration = Decoration.line({
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ code, setCode, currentLine, isComplete }) => {
   const editorRef = useRef<EditorView | null>(null);
+  const [selectedCode, setSelectedCode] = useState('defaultCode');
 
-  useEffect(() => {
-    setCode(`console.log("begins");
+  const codeOptions: { [key: string]: string } = {
+    defaultCode: `console.log("begins");
 
 setTimeout(() => {
   console.log("setTimeout 1");
@@ -79,42 +80,49 @@ new Promise(function (resolve, reject) {
   setTimeout(() => {
     console.log(res);
   }, 0);
-});`);
-  }, [setCode]);
+});`,
+
+    variableMemoryCode: `var obj = new Object;        // Allocate new object address
+obj.name = "MaoMao";           // { name: "MaoMao" }
+var obj2 = obj;              // Directly copy the address, referencing the same object { name: "MaoMao" }
+var obj3 = { name: "MaoMao" };  // Allocate new object address { name: "MaoMao" }
+console.log( obj === obj2 ); // true   Referencing the same object
+console.log( obj === obj3 ); // false  Although the objects look the same, the reference addresses are different`
+  };
+
+  useEffect(() => {
+    setCode(codeOptions[selectedCode]);
+  }, [selectedCode, setCode]);
 
   useEffect(() => {
     if (editorRef.current && currentLine > 0) {
       const view = editorRef.current;
       const docLineCount = view.state.doc.lines;
 
-      // TODO:調整行號基準
+      // Adjust line number base if necessary
       const adjustedLine = currentLine - 4;
-      // console.log(currentLine,"===========currentLine🤣🤣🤣")
-      // console.log(adjustedLine,"===========adjustedLine😍😍😍")
       if (adjustedLine > 0 && adjustedLine <= docLineCount) {
-        // 把已執行的行數背景變暗
+        // Dim the background of executed lines
         for (let line = 1; line < adjustedLine; line++) {
           view.dispatch({
             effects: addExecutedHighlight.of({ line })
           });
         }
 
-        // 高亮目前行數
+        // Highlight the current line
         view.dispatch({
           effects: addHighlight.of({ line: adjustedLine })
         });
       }
     }
 
-    // 如果 isComplete 為 true，清除所有高亮
+    // Clear all highlights if execution is complete
     if (isComplete && editorRef.current) {
-
       setTimeout(() => {
         editorRef.current?.dispatch({
           effects: clearHighlights.of(null)
         });
       }, 1000);
-
     }
   }, [currentLine, isComplete]);
 
@@ -122,6 +130,18 @@ new Promise(function (resolve, reject) {
     <Card className="h-1/2 max-h-1/2 relative overflow-hidden flex flex-col">
       <CardHeader>
         <CardTitle>Code Editor</CardTitle>
+        {/* Add a dropdown menu to switch code snippets */}
+        <div>
+          <label htmlFor="code-select">Select Code:</label>
+          <select
+            id="code-select"
+            value={selectedCode}
+            onChange={(e) => setSelectedCode(e.target.value)}
+          >
+            <option value="defaultCode">Default Code</option>
+            <option value="variableMemoryCode">Variable Memory Code</option>
+          </select>
+        </div>
       </CardHeader>
       <CardContent className='p-0 flex-grow overflow-y-scroll'>
         <CodeMirror
@@ -138,7 +158,6 @@ new Promise(function (resolve, reject) {
             }),
           ]}
           className="h-full bg-slate-800"
-          
         />
       </CardContent>
     </Card>

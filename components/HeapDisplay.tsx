@@ -12,7 +12,7 @@ interface HeapDisplayProps {
 
 const HeapDisplay: React.FC<HeapDisplayProps> = ({ heap }) => {
 
-    console.log(heap,"===================heap😍😍😍")
+    // console.log(heap,"===================heap😍😍😍")
 
     return (
         <div className="bg-gray-800 p-4 rounded-lg">
